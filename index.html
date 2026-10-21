@@ -257,6 +257,7 @@
             <option value="1">Putih</option>
             <option value="-1">Hitam</option>
           </select></label
+        ><label><input type="checkbox" id="atr" checked /> 🪤 Jebakan otomatis (saran &amp; AI memilih umpan)</label
         ><label
           >Lawan AI
           <select id="ai">
@@ -662,6 +663,24 @@
             : "Kalah paksa"
           : ((r.score / 100) * (G.side == 1 ? 1 : -1)).toFixed(2) + " (+ = unggul Putih)";
       }
+      /* ===== JEBAKAN OTOMATIS: pilih umpan terbaik yang nilainya hampir sama dengan langkah terbaik ===== */
+      function pickTrap(s, ms, r) {
+        if (Math.abs(r.score) > 28000) return r;
+        const d = Math.max(2, Math.min(r.depth - 1, 6)), base = ev(s);
+        let best = null;
+        dl = Date.now() + +$("lv").value;
+        nodes = 0;
+        try {
+          for (const m of ms) {
+            const c = ap(s, m), net = -nm(c, 0, -1e9, 1e9, 1) - base;
+            if (net > -80) continue;
+            const deep = -nm(c, d, -1e9, 1e9, 1);
+            if (deep >= r.score - 50 && (!best || deep > best.deep || (deep == best.deep && net < best.net)))
+              best = { m, deep, net };
+          }
+        } catch (e) {}
+        return best ? { ...r, m: best.m, score: best.deep, trap: 1 } : r;
+      }
       function suggest(auto) {
         if (busy) return;
         const ms = legal(G);
@@ -669,8 +688,11 @@
         busy = 1;
         $("info").textContent = "Mesin berpikir…";
         setTimeout(() => {
-          const r = think(G, ms, +$("lv").value),
-            L = label(G, r);
+          let r = think(G, ms, +$("lv").value);
+          if ($("atr").checked) r = pickTrap(G, ms, r);
+          const L = r.trap
+            ? ["Jebakan otomatis", "Umpan materi yang, menurut hitungan mesin, merugikan lawan jika dimakan.", "#d35400"]
+            : label(G, r);
           hint = [r.m.f, r.m.t];
           hintM = r.m;
           $("info").innerHTML =
@@ -924,12 +946,12 @@
       $("bwin").onclick = floatWin;
 
       /* ===== VERSI & NOTIFIKASI UPDATE ===== */
-      const APP_VERSION = "1.4.0";
+      const APP_VERSION = "1.5.0";
       const CHANGELOG = [
         "Cari Jebakan massal (hingga 500)",
         "Jendela melayang",
         "Notifikasi update",
-        "Kode dirapikan",
+        "Jebakan otomatis di Saran & AI",
       ];
       const notified = new Set();
       $("ver").textContent = "Versi " + APP_VERSION + " · Baru: " + CHANGELOG.join(" · ");
