@@ -27,15 +27,15 @@ button.pr{background:#3b7d3b;color:#fff;border-color:#3b7d3b}
 <div id="rc"><label><input type="checkbox" id="dbl" checked> Pion boleh langkah ganda</label><label><input type="checkbox" id="kc"> Menang dengan menangkap Raja (tanpa aturan skak)</label></div>
 <div id="rk" class="hid"><label><input type="checkbox" id="force" checked> Wajib makan</label><label><input type="checkbox" id="back" checked> Pion boleh makan mundur</label><label><input type="checkbox" id="fly" checked> Raja terbang (flying king)</label></div>
 <label>Level <select id="lv"><option value="400">Cepat</option><option value="2000" selected>Kuat</option><option value="6000">Pro (6 dtk)</option></select></label>
-<label><input type="checkbox" id="ai"> Lawan AI (AI main Hitam)</label>
-<button class="pr" id="bn">Game Baru</button><button id="bs">💡 Saran Langkah</button><button id="bu">Undo</button><button id="bf">Balik Papan</button>
+<label>Jalan duluan <select id="first"><option value="1">Putih</option><option value="-1">Hitam</option></select></label><label>Lawan AI <select id="ai"><option value="0" selected>Tidak (main dua warna sendiri)</option><option value="-1">AI main Hitam</option><option value="1">AI main Putih</option></select></label>
+<button class="pr" id="bn">Game Baru</button><button id="bs">💡 Saran Langkah</button><button id="bp" class="pr">▶ Jalankan Saran</button><button id="bu">Undo</button><button id="bf">Balik Papan</button><button id="bt">⇄ Ganti Giliran</button>
 <div id="info" style="margin-top:10px"></div>
 <div class="sm">Klik bidak lalu kotak tujuan. Mesin: negamax + alpha-beta, iterative deepening, quiescence. Label (Brilliant, Gambit, Jebakan) ditebak dari hasil pencarian. Catatan: belum ada rokade &amp; en passant, promosi selalu jadi Menteri.</div></div></div>
 <script>
 const $=id=>document.getElementById(id),own=(p,s)=>p&&(s==1)==(p==p.toUpperCase());
 const V={P:100,N:320,B:330,R:500,Q:900,K:20000},C={M:100,K:300},GL={K:'♚',Q:'♛',R:'♜',B:'♝',N:'♞',P:'♟'};
 const ND=[[1,2],[2,1],[-1,2],[-2,1],[1,-2],[2,-1],[-1,-2],[-2,-1]],KD=[[1,0],[-1,0],[0,1],[0,-1],[1,1],[1,-1],[-1,1],[-1,-1]];
-let G,sel=null,hint=null,busy=0,nodes,dl;
+let G,sel=null,hint=null,hintM=null,busy=0,nodes,dl;
 function setup(t,W,H){const b=Array(W*H).fill(null);
 if(t=='chess'){const K=W>>1,Q=K-1,sq='RNB',row=Array(W);row[K]='K';row[Q]='Q';
 for(let i=0;i<Q;i++)row[i]=sq[i%3];for(let i=W-1,k=0;i>K;i--,k++)row[i]=sq[k%3];
@@ -43,8 +43,8 @@ for(let c=0;c<W;c++){b[c]=row[c].toLowerCase();b[W+c]='p';b[(H-2)*W+c]='P';b[(H-
 else{const n=Math.max(1,(H-2)>>1);for(let r=0;r<H;r++)for(let c=0;c<W;c++)if((r+c)%2){if(r<n)b[r*W+c]='m';else if(r>=H-n)b[r*W+c]='M'}}
 return b}
 function mk(){const W=Math.min(12,Math.max(4,+$('W').value||8)),H=Math.min(12,Math.max(5,+$('H').value||8)),t=$('ty').value;
-G={type:t,W,H,R:{dbl:$('dbl').checked,kc:$('kc').checked,force:$('force').checked,back:$('back').checked,fly:$('fly').checked},b:setup(t,W,H),side:1,hist:[],last:null,flip:G?G.flip:0};
-sel=hint=null;$('info').innerHTML='';draw();after()}
+G={type:t,W,H,R:{dbl:$('dbl').checked,kc:$('kc').checked,force:$('force').checked,back:$('back').checked,fly:$('fly').checked},b:setup(t,W,H),side:+$('first').value,hist:[],last:null,flip:G?G.flip:0};
+sel=hint=hintM=null;$('info').innerHTML='';draw();after()}
 function gen(s,co){return s.type=='chess'?genC(s,co):genK(s,co)}
 function genC(s,co){const{b,W,H,side,R}=s,out=[];
 for(let i=0;i<b.length;i++){const p=b[i];if(!p||!own(p,side))continue;const t=p.toUpperCase(),r=i/W|0,c=i%W;
@@ -96,25 +96,25 @@ if(comp>=150)return['Taktik','Langkah ini memenangkan materi atau posisi lewat k
 return['Solid','Langkah terbaik menurut mesin.','#3b7d3b']}
 function scTxt(r){return Math.abs(r.score)>28000?(r.score>0?'Menang paksa':'Kalah paksa'):(r.score/100*(G.side==1?1:-1)).toFixed(2)+' (+ = unggul Putih)'}
 function suggest(auto){if(busy)return;const ms=legal(G);if(!ms.length)return;busy=1;$('info').textContent='Mesin berpikir…';
-setTimeout(()=>{const r=think(G,ms,+$('lv').value),L=label(G,r);hint=[r.m.f,r.m.t];
+setTimeout(()=>{const r=think(G,ms,+$('lv').value),L=label(G,r);hint=[r.m.f,r.m.t];hintM=r.m;
 $('info').innerHTML=`<span class="tag" style="background:${L[2]}">${L[0]}</span> <b>${mtxt(G,r.m)}</b><br>${L[1]}<div class="sm">Eval ${scTxt(r)} · kedalaman ${r.depth} · ${r.nodes.toLocaleString()} node</div>`;
 busy=0;if(auto)play(r.m);else draw()},40)}
-function play(m){G.hist.push({b:G.b,last:G.last});const n=ap(G,m);G.b=n.b;G.side=n.side;G.last=[m.f,m.t];sel=hint=null;draw();after()}
+function play(m){G.hist.push({b:G.b,last:G.last});const n=ap(G,m);G.b=n.b;G.side=n.side;G.last=[m.f,m.t];sel=hint=hintM=null;draw();after()}
 function over(){const ms=legal(G);if(G.R.kc&&G.type=='chess'&&!G.b.includes(G.side==1?'K':'k'))return'Raja ditangkap – '+(G.side==1?'Hitam':'Putih')+' menang';
 if(ms.length)return'';if(G.type!='chess')return(G.side==1?'Hitam':'Putih')+' menang (lawan tak bisa jalan)';return inCheck(G)?'SKAKMAT – '+(G.side==1?'Hitam':'Putih')+' menang':'Stalemate – remis'}
 function after(){const o=over();$('st').textContent=o||('Giliran: '+(G.side==1?'Putih':'Hitam')+(G.type=='chess'&&inCheck(G)?' – SKAK!':''));
-if(!o&&$('ai').checked&&G.side==-1)setTimeout(()=>suggest(1),150)}
+if(!o&&+$('ai').value&&G.side==+$('ai').value)setTimeout(()=>suggest(1),150)}
 function draw(){const{W,H,b}=G,B=$('bd'),s=Math.max(26,Math.min(64,Math.floor((Math.min(innerWidth,720)-50)/W)));B.style.setProperty('--s',s+'px');B.style.gridTemplateColumns=`repeat(${W},var(--s))`;
 const tg=sel==null?[]:legal(G).filter(m=>m.f==sel).map(m=>m.t);let h='';
 for(let k=0;k<W*H;k++){const r=G.flip?H-1-(k/W|0):k/W|0,c=G.flip?W-1-k%W:k%W,i=r*W+c,p=b[i];
 let cl='sq '+((r+c)%2?'d':'l')+(sel==i?' sel':'')+(tg.includes(i)?' tg':'')+(G.last&&G.last.includes(i)?' lm':'')+(hint&&hint.includes(i)?' h':'');
 let ct='';if(p){const w=own(p,1)?'pw':'pb';ct=G.type=='chess'?`<span class="${w}">${GL[p.toUpperCase()]}</span>`:`<i class="ck ${w}">${p.toUpperCase()=='K'?'♛':''}</i>`}
 h+=`<div class="${cl}" data-i="${i}">${ct}</div>`}B.innerHTML=h}
-$('bd').onclick=e=>{const d=e.target.closest('.sq');if(!d||busy||over())return;if($('ai').checked&&G.side==-1)return;const i=+d.dataset.i,ms=legal(G);
+$('bd').onclick=e=>{const d=e.target.closest('.sq');if(!d||busy||over())return;if(+$('ai').value&&G.side==+$('ai').value)return;const i=+d.dataset.i,ms=legal(G);
 if(sel!=null){const m=ms.find(m=>m.f==sel&&m.t==i);if(m)return play(m)}
 sel=own(G.b[i],G.side)?i:null;draw()};
-$('bn').onclick=mk;$('bs').onclick=()=>suggest(0);$('bf').onclick=()=>{G.flip^=1;draw()};
-$('bu').onclick=()=>{if(busy)return;let n=$('ai').checked&&G.hist.length>1?2:1;while(n--&&G.hist.length){const h=G.hist.pop();G.b=h.b;G.last=h.last;G.side=-G.side}sel=hint=null;draw();$('st').textContent='Giliran: '+(G.side==1?'Putih':'Hitam')};
+$('bn').onclick=mk;$('bs').onclick=()=>suggest(0);$('bp').onclick=()=>{if(busy||over())return;hintM?play(hintM):suggest(1)};$('bt').onclick=()=>{if(busy)return;G.side=-G.side;sel=hint=hintM=null;draw();after()};$('first').onchange=$('ai').onchange=mk;$('bf').onclick=()=>{G.flip^=1;draw()};
+$('bu').onclick=()=>{if(busy)return;let n=+$('ai').value&&G.hist.length>1?2:1;while(n--&&G.hist.length){const h=G.hist.pop();G.b=h.b;G.last=h.last;G.side=-G.side}sel=hint=hintM=null;draw();$('st').textContent='Giliran: '+(G.side==1?'Putih':'Hitam')};
 $('ty').onchange=()=>{const c=$('ty').value=='chess';$('rc').classList.toggle('hid',!c);$('rk').classList.toggle('hid',c);mk()};
 addEventListener('resize',()=>G&&draw());mk();
 </script></body></html>
