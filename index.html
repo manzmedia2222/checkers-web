@@ -1,0 +1,120 @@
+<!DOCTYPE html><html lang="id"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover"><title>Next Move Pro – Catur & Checkers</title>
+<style>
+:root{--bg:#f4f1ea;--tx:#222;--cd:#fff;--bd:#ccc;box-sizing:border-box;padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px);color-scheme:light}
+@media(prefers-color-scheme:dark){:root:not([data-theme="light"]){--bg:#1d1d1b;--tx:#eee;--cd:#2a2a27;--bd:#444;color-scheme:dark}}
+:root[data-theme="dark"]{--bg:#1d1d1b;--tx:#eee;--cd:#2a2a27;--bd:#444;color-scheme:dark}
+body{margin:0;background:var(--bg);color:var(--tx);font:15px system-ui,sans-serif;padding:12px}
+h1{font-size:20px;margin:0 0 10px}.w{display:flex;flex-wrap:wrap;gap:14px;max-width:1000px;margin:auto}
+.p{background:var(--cd);border:1px solid var(--bd);border-radius:10px;padding:12px;flex:1;min-width:250px}
+label{display:block;margin:5px 0}input[type=number],select{width:64px;padding:3px}select{width:auto}
+button{padding:7px 11px;margin:3px 3px 0 0;border:1px solid var(--bd);border-radius:7px;background:var(--cd);color:var(--tx);cursor:pointer}
+button.pr{background:#3b7d3b;color:#fff;border-color:#3b7d3b}
+#bw{overflow-x:auto;max-width:100%}#bd{display:grid;width:max-content;border:3px solid #444;margin:auto}
+.sq{width:var(--s);height:var(--s);display:flex;align-items:center;justify-content:center;font-size:calc(var(--s)*.78);position:relative;cursor:pointer;line-height:1;user-select:none}
+.l{background:#eeeed2}.d{background:#769656}.sel{outline:3px solid #e8b923;outline-offset:-3px}
+.tg::after{content:"";position:absolute;width:30%;height:30%;border-radius:50%;background:rgba(0,0,0,.28)}
+.lm{box-shadow:inset 0 0 0 100px rgba(255,235,59,.35)}.h{box-shadow:inset 0 0 0 100px rgba(66,165,245,.55)}
+.pw{color:#fff;text-shadow:0 0 2px #000,0 0 2px #000,0 0 1px #000}.pb{color:#111}
+.ck{width:76%;height:76%;border-radius:50%;box-shadow:0 2px 4px #0006;display:flex;align-items:center;justify-content:center;font-size:.6em;font-style:normal}
+.ck.pw{background:#f5f5f5;border:3px solid #bbb;color:#c28a00;text-shadow:none}.ck.pb{background:#333;border:3px solid #111;color:#e8b923}
+#info{min-height:70px}.tag{display:inline-block;padding:2px 8px;border-radius:6px;color:#fff;background:#3b7d3b;font-weight:700}
+.sm{font-size:13px;opacity:.8}.hid{display:none}
+</style></head><body><div class="w">
+<div class="p" style="flex:2;min-width:300px"><h1>♞ Next Move Pro</h1><div id="st" style="margin-bottom:6px;font-weight:600"></div><div id="bw"><div id="bd"></div></div></div>
+<div class="p"><b>Pengaturan</b>
+<label>Game <select id="ty"><option value="chess">Catur</option><option value="ck">Checkers / Dam</option></select></label>
+<label>Lebar <input type="number" id="W" value="8" min="4" max="12"> Tinggi <input type="number" id="H" value="8" min="5" max="12"></label>
+<div id="rc"><label><input type="checkbox" id="dbl" checked> Pion boleh langkah ganda</label><label><input type="checkbox" id="kc"> Menang dengan menangkap Raja (tanpa aturan skak)</label></div>
+<div id="rk" class="hid"><label><input type="checkbox" id="force" checked> Wajib makan</label><label><input type="checkbox" id="back" checked> Pion boleh makan mundur</label><label><input type="checkbox" id="fly" checked> Raja terbang (flying king)</label></div>
+<label>Level <select id="lv"><option value="400">Cepat</option><option value="2000" selected>Kuat</option><option value="6000">Pro (6 dtk)</option></select></label>
+<label><input type="checkbox" id="ai"> Lawan AI (AI main Hitam)</label>
+<button class="pr" id="bn">Game Baru</button><button id="bs">💡 Saran Langkah</button><button id="bu">Undo</button><button id="bf">Balik Papan</button>
+<div id="info" style="margin-top:10px"></div>
+<div class="sm">Klik bidak lalu kotak tujuan. Mesin: negamax + alpha-beta, iterative deepening, quiescence. Label (Brilliant, Gambit, Jebakan) ditebak dari hasil pencarian. Catatan: belum ada rokade &amp; en passant, promosi selalu jadi Menteri.</div></div></div>
+<script>
+const $=id=>document.getElementById(id),own=(p,s)=>p&&(s==1)==(p==p.toUpperCase());
+const V={P:100,N:320,B:330,R:500,Q:900,K:20000},C={M:100,K:300},GL={K:'♚',Q:'♛',R:'♜',B:'♝',N:'♞',P:'♟'};
+const ND=[[1,2],[2,1],[-1,2],[-2,1],[1,-2],[2,-1],[-1,-2],[-2,-1]],KD=[[1,0],[-1,0],[0,1],[0,-1],[1,1],[1,-1],[-1,1],[-1,-1]];
+let G,sel=null,hint=null,busy=0,nodes,dl;
+function setup(t,W,H){const b=Array(W*H).fill(null);
+if(t=='chess'){const K=W>>1,Q=K-1,sq='RNB',row=Array(W);row[K]='K';row[Q]='Q';
+for(let i=0;i<Q;i++)row[i]=sq[i%3];for(let i=W-1,k=0;i>K;i--,k++)row[i]=sq[k%3];
+for(let c=0;c<W;c++){b[c]=row[c].toLowerCase();b[W+c]='p';b[(H-2)*W+c]='P';b[(H-1)*W+c]=row[c]}}
+else{const n=Math.max(1,(H-2)>>1);for(let r=0;r<H;r++)for(let c=0;c<W;c++)if((r+c)%2){if(r<n)b[r*W+c]='m';else if(r>=H-n)b[r*W+c]='M'}}
+return b}
+function mk(){const W=Math.min(12,Math.max(4,+$('W').value||8)),H=Math.min(12,Math.max(5,+$('H').value||8)),t=$('ty').value;
+G={type:t,W,H,R:{dbl:$('dbl').checked,kc:$('kc').checked,force:$('force').checked,back:$('back').checked,fly:$('fly').checked},b:setup(t,W,H),side:1,hist:[],last:null,flip:G?G.flip:0};
+sel=hint=null;$('info').innerHTML='';draw();after()}
+function gen(s,co){return s.type=='chess'?genC(s,co):genK(s,co)}
+function genC(s,co){const{b,W,H,side,R}=s,out=[];
+for(let i=0;i<b.length;i++){const p=b[i];if(!p||!own(p,side))continue;const t=p.toUpperCase(),r=i/W|0,c=i%W;
+const mv=(rr,cc)=>{if(rr<0||cc<0||rr>=H||cc>=W)return 0;const j=rr*W+cc,q=b[j];if(q&&own(q,side))return 0;if(!q){if(!co)out.push({f:i,t:j});return 1}out.push({f:i,t:j,c:1});return 2};
+if(t=='P'){const d=-side,pr=r+d,last=pr==0||pr==H-1;
+if(pr>=0&&pr<H){if(!b[pr*W+c]&&(!co||last)){out.push({f:i,t:pr*W+c,pr:last});const st=side==1?H-2:1;if(R.dbl&&r==st&&!b[(pr+d)*W+c]&&!co)out.push({f:i,t:(pr+d)*W+c})}
+for(const dc of[-1,1]){const cc=c+dc;if(cc<0||cc>=W)continue;const q=b[pr*W+cc];if(q&&!own(q,side))out.push({f:i,t:pr*W+cc,c:1,pr:last})}}}
+else{const sl=t=='R'||t=='B'||t=='Q',ds=t=='N'?ND:t=='K'?KD:KD.filter((d,k)=>t=='Q'||(t=='R'?k<4:k>=4));
+for(const[dr,dc]of ds){let rr=r+dr,cc=c+dc;if(sl){while(mv(rr,cc)==1){rr+=dr;cc+=dc}}else mv(rr,cc)}}}
+return out}
+function genK(s,co){const{b,W,H,side,R}=s,caps=[],q=[],D=KD.slice(4),inb=(r,c)=>r>=0&&c>=0&&r<H&&c<W;
+for(let i=0;i<b.length;i++){const p=b[i];if(!p||!own(p,side))continue;const king=p.toUpperCase()=='K',at=j=>j==i?null:b[j];
+const rec=(r,c,tk)=>{let any=0;for(const[dr,dc]of D){if(!king&&!R.back&&dr!=-side)continue;
+let rr=r+dr,cc=c+dc;if(king&&R.fly)while(inb(rr,cc)&&!at(rr*W+cc)){rr+=dr;cc+=dc}
+if(!inb(rr,cc))continue;const j=rr*W+cc,x=at(j);if(!x||own(x,side)||tk.includes(j))continue;
+let lr=rr+dr,lc=cc+dc;const ls=[];while(inb(lr,lc)&&!at(lr*W+lc)){ls.push(lr*W+lc);if(!(king&&R.fly))break;lr+=dr;lc+=dc}
+for(const l of ls){any=1;const t2=tk.concat(j),lrow=l/W|0;if(!rec(lrow,l%W,t2))caps.push({f:i,t:l,cap:t2,pr:!king&&(side==1?lrow==0:lrow==H-1)})}}return any};
+rec(i/W|0,i%W,[]);
+if(!co)for(const[dr,dc]of D){if(!king&&dr!=-side)continue;let rr=(i/W|0)+dr,cc=i%W+dc;
+while(inb(rr,cc)&&!b[rr*W+cc]){const t=rr*W+cc;q.push({f:i,t,cap:[],pr:!king&&(side==1?rr==0:rr==H-1)});if(!(king&&R.fly))break;rr+=dr;cc+=dc}}}
+return co?caps:(R.force&&caps.length?caps:caps.concat(q))}
+function ap(s,m){const b=s.b.slice(),p=b[m.f];b[m.f]=null;if(m.cap)m.cap.forEach(j=>b[j]=null);b[m.t]=m.pr?(s.type=='chess'?(s.side==1?'Q':'q'):(s.side==1?'K':'k')):p;return{type:s.type,W:s.W,H:s.H,R:s.R,b,side:-s.side}}
+function capV(s,m){if(s.type=='chess')return(s.b[m.t]?V[s.b[m.t].toUpperCase()]:0)+(m.pr?800:0);return m.cap.reduce((a,j)=>a+C[s.b[j].toUpperCase()],0)+(m.pr?200:0)}
+function ev(s){const{b,W,H}=s;let t=0;for(let i=0;i<b.length;i++){const p=b[i];if(!p)continue;const w=own(p,1),u=p.toUpperCase(),r=i/W|0,c=i%W,adv=w?H-1-r:r,cen=-(Math.abs(c-(W-1)/2)+Math.abs(r-(H-1)/2));let v;
+if(s.type=='chess'){v=V[u];if(u=='P')v+=adv*4+cen*2;else if(u=='N'||u=='B')v+=cen*5;else if(u=='Q')v+=cen;else if(u=='K')v=v-cen*0}
+else{v=C[u];if(u=='M')v+=adv*5+cen*2;else v+=cen*2}
+t+=w?v:-v}return t*s.side}
+function order(s,ms){const sc=m=>(s.type=='chess'?(s.b[m.t]?V[s.b[m.t].toUpperCase()]*10-V[s.b[m.f].toUpperCase()]:0)+(m.pr?800:0):m.cap.length*1000+(m.pr?50:0));return ms.map(m=>[sc(m),m]).sort((a,b)=>b[0]-a[0]).map(x=>x[1])}
+function nm(s,d,a,B,ply){if((++nodes&511)==0&&Date.now()>dl)throw 0;const q=d<=0;let best=-1e9;
+if(q){best=ev(s);if(best>=B||d<-6)return best;if(best>a)a=best}
+const ms=order(s,gen(s,q));if(!ms.length&&!q)return s.type=='chess'?0:-29000+ply;
+for(const m of ms){if(s.type=='chess'&&s.b[m.t]&&s.b[m.t].toUpperCase()=='K')return 30000-ply;
+const sc=-nm(ap(s,m),d-1,-B,-a,ply+1);if(sc>best){best=sc;if(sc>a){a=sc;if(a>=B)break}}}
+return best}
+function legal(s){const ms=gen(s);if(s.type!='chess'||s.R.kc)return ms;const k=s.side==1?'K':'k';return ms.filter(m=>{const n=ap(s,m);return!gen(n).some(o=>n.b[o.t]==k)})}
+function inCheck(s){const k=s.side==1?'K':'k';return gen({...s,side:-s.side}).some(o=>s.b[o.t]==k)}
+function think(s,ms,time){dl=Date.now()+time;nodes=0;let res=null;ms=order(s,ms);
+for(let d=1;d<=40;d++){try{let a=-1e9,cur=null;for(const m of ms){const sc=-nm(ap(s,m),d-1,-1e9,-a,1);if(sc>a){a=sc;cur=m}}
+res={m:cur,score:a,depth:d,nodes};ms=[cur].concat(ms.filter(x=>x!=cur));if(Math.abs(a)>28000||ms.length==1)break}catch(e){break}}
+if(!res)res={m:ms[0],score:0,depth:0,nodes};return res}
+const sqn=i=>String.fromCharCode(97+i%G.W)+(G.H-(i/G.W|0));
+function mtxt(s,m){const p=s.b[m.f].toUpperCase();return(s.type=='chess'&&p!='P'?p:'')+sqn(m.f)+(m.c||(m.cap&&m.cap.length)?'x':'-')+sqn(m.t)+(m.pr?'=Q':'')}
+function label(s,r){dl=Date.now()+8000;nodes=0;const ch=s.type=='chess',base=ev(s),qv=-nm(ap(s,r.m),0,-1e9,1e9,1),net=qv-base,comp=r.score-base,ab=Math.abs(r.score);
+if(ab>28000)return r.score>0?['Mat/Menang paksa','Mesin menemukan jalur paksa menuju kemenangan.','#c0392b']:['Posisi kalah','Semua langkah kalah paksa; ini yang paling lama bertahan.','#777'];
+if(net<=-(ch?250:190)&&comp>=100)return['Brilliant !!','Pengorbanan besar yang terbukti menang lebih banyak setelah dihitung dalam.','#1aa5a5'];
+if(ch&&net<=-80&&comp>=-120&&G.hist.length<24)return['Gambit','Korbankan pion demi inisiatif/perkembangan; kompensasinya cukup.','#8e44ad'];
+if(net<=-80&&comp>=-40)return['Jebakan','Terlihat memberi materi gratis, tapi lawan yang menerima umpan akan rugi di perhitungan dalam.','#d35400'];
+if(comp>=150)return['Taktik','Langkah ini memenangkan materi atau posisi lewat kombinasi.','#2980b9'];
+return['Solid','Langkah terbaik menurut mesin.','#3b7d3b']}
+function scTxt(r){return Math.abs(r.score)>28000?(r.score>0?'Menang paksa':'Kalah paksa'):(r.score/100*(G.side==1?1:-1)).toFixed(2)+' (+ = unggul Putih)'}
+function suggest(auto){if(busy)return;const ms=legal(G);if(!ms.length)return;busy=1;$('info').textContent='Mesin berpikir…';
+setTimeout(()=>{const r=think(G,ms,+$('lv').value),L=label(G,r);hint=[r.m.f,r.m.t];
+$('info').innerHTML=`<span class="tag" style="background:${L[2]}">${L[0]}</span> <b>${mtxt(G,r.m)}</b><br>${L[1]}<div class="sm">Eval ${scTxt(r)} · kedalaman ${r.depth} · ${r.nodes.toLocaleString()} node</div>`;
+busy=0;if(auto)play(r.m);else draw()},40)}
+function play(m){G.hist.push({b:G.b,last:G.last});const n=ap(G,m);G.b=n.b;G.side=n.side;G.last=[m.f,m.t];sel=hint=null;draw();after()}
+function over(){const ms=legal(G);if(G.R.kc&&G.type=='chess'&&!G.b.includes(G.side==1?'K':'k'))return'Raja ditangkap – '+(G.side==1?'Hitam':'Putih')+' menang';
+if(ms.length)return'';if(G.type!='chess')return(G.side==1?'Hitam':'Putih')+' menang (lawan tak bisa jalan)';return inCheck(G)?'SKAKMAT – '+(G.side==1?'Hitam':'Putih')+' menang':'Stalemate – remis'}
+function after(){const o=over();$('st').textContent=o||('Giliran: '+(G.side==1?'Putih':'Hitam')+(G.type=='chess'&&inCheck(G)?' – SKAK!':''));
+if(!o&&$('ai').checked&&G.side==-1)setTimeout(()=>suggest(1),150)}
+function draw(){const{W,H,b}=G,B=$('bd'),s=Math.max(26,Math.min(64,Math.floor((Math.min(innerWidth,720)-50)/W)));B.style.setProperty('--s',s+'px');B.style.gridTemplateColumns=`repeat(${W},var(--s))`;
+const tg=sel==null?[]:legal(G).filter(m=>m.f==sel).map(m=>m.t);let h='';
+for(let k=0;k<W*H;k++){const r=G.flip?H-1-(k/W|0):k/W|0,c=G.flip?W-1-k%W:k%W,i=r*W+c,p=b[i];
+let cl='sq '+((r+c)%2?'d':'l')+(sel==i?' sel':'')+(tg.includes(i)?' tg':'')+(G.last&&G.last.includes(i)?' lm':'')+(hint&&hint.includes(i)?' h':'');
+let ct='';if(p){const w=own(p,1)?'pw':'pb';ct=G.type=='chess'?`<span class="${w}">${GL[p.toUpperCase()]}</span>`:`<i class="ck ${w}">${p.toUpperCase()=='K'?'♛':''}</i>`}
+h+=`<div class="${cl}" data-i="${i}">${ct}</div>`}B.innerHTML=h}
+$('bd').onclick=e=>{const d=e.target.closest('.sq');if(!d||busy||over())return;if($('ai').checked&&G.side==-1)return;const i=+d.dataset.i,ms=legal(G);
+if(sel!=null){const m=ms.find(m=>m.f==sel&&m.t==i);if(m)return play(m)}
+sel=own(G.b[i],G.side)?i:null;draw()};
+$('bn').onclick=mk;$('bs').onclick=()=>suggest(0);$('bf').onclick=()=>{G.flip^=1;draw()};
+$('bu').onclick=()=>{if(busy)return;let n=$('ai').checked&&G.hist.length>1?2:1;while(n--&&G.hist.length){const h=G.hist.pop();G.b=h.b;G.last=h.last;G.side=-G.side}sel=hint=null;draw();$('st').textContent='Giliran: '+(G.side==1?'Putih':'Hitam')};
+$('ty').onchange=()=>{const c=$('ty').value=='chess';$('rc').classList.toggle('hid',!c);$('rk').classList.toggle('hid',c);mk()};
+addEventListener('resize',()=>G&&draw());mk();
+</script></body></html>
