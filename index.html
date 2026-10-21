@@ -211,6 +211,23 @@
       .tr:hover {
         background: rgba(127, 127, 127, 0.15);
       }
+    
+      /* ===== TAMPILAN BARU ===== */
+      :root{--acc:#2e7d32;--acc2:#43a047;--sq1:#f0d9b5;--sq2:#b58863;--sh:0 6px 22px rgba(0,0,0,.12)}
+      body{min-height:100vh;padding:16px}
+      h1{font-size:22px;letter-spacing:.3px}
+      .p{border-radius:16px;box-shadow:var(--sh);padding:16px}
+      #st{padding:8px 12px;border-radius:10px;background:rgba(127,127,127,.14)}
+      .l{background:var(--sq1)}.d{background:var(--sq2)}
+      #bd{border:6px solid #5b3a1e;border-radius:10px;box-shadow:0 10px 30px rgba(0,0,0,.3)}
+      .sq:hover{filter:brightness(1.1)}
+      button{transition:.15s;font-weight:600}
+      button:hover{transform:translateY(-1px);filter:brightness(1.08)}
+      button.pr{background:linear-gradient(135deg,var(--acc2),var(--acc));border-color:var(--acc)}
+      label{display:flex;align-items:center;gap:6px;flex-wrap:wrap}
+      select,input[type=number]{border-radius:6px;border:1px solid var(--bd);background:var(--cd);color:var(--tx);padding:4px 6px}
+      .tag{border-radius:999px;padding:3px 12px}
+      .why{margin:8px 0 0;padding:10px 14px 10px 28px;border-radius:10px;background:rgba(127,127,127,.14);line-height:1.55;font-size:14px}
     </style>
   </head>
   <body>
@@ -239,13 +256,15 @@
           ><label><input type="checkbox" id="kc" /> Menang dengan menangkap Raja (tanpa aturan skak)</label>
         </div>
         <div id="rk" class="hid">
-          <label><input type="checkbox" id="force" checked /> Wajib makan</label
+          <label>Arah jalan <select id="dir"><option value="d" selected>Diagonal (standar)</option><option value="a">Diagonal + vertikal/horizontal</option><option value="o">Vertikal/horizontal saja (gaya Turki)</option></select></label
+          ><label><input type="checkbox" id="force" checked /> Wajib makan</label
           ><label><input type="checkbox" id="back" checked /> Pion boleh makan mundur</label
           ><label><input type="checkbox" id="fly" checked /> Raja terbang (flying king)</label>
         </div>
         <label
           >Level
           <select id="lv">
+            <option value="x">⚡ Expert (cepat, selalu jebakan, korban minim)</option>
             <option value="400">Cepat</option>
             <option value="2000" selected>Kuat</option>
             <option value="6000">Pro (6 dtk)</option>
@@ -322,7 +341,7 @@
         nodes,
         dl;
       /* ===== PAPAN AWAL ===== */
-      function setup(t, W, H) {
+      function setup(t, W, H, dir) {
         const b = Array(W * H).fill(null);
         if (t == "chess") {
           const K = W >> 1,
@@ -340,13 +359,17 @@
             b[(H - 1) * W + c] = row[c];
           }
         } else {
-          const n = Math.max(1, (H - 2) >> 1);
+          const diag = dir == "d",
+            n = diag ? Math.max(1, (H - 2) >> 1) : Math.min(2, Math.max(1, (H - 2) >> 1));
           for (let r = 0; r < H; r++)
-            for (let c = 0; c < W; c++)
-              if ((r + c) % 2) {
+            for (let c = 0; c < W; c++) {
+              if (diag) {
+                if (!((r + c) % 2)) continue;
                 if (r < n) b[r * W + c] = "m";
                 else if (r >= H - n) b[r * W + c] = "M";
-              }
+              } else if (r >= 1 && r <= n) b[r * W + c] = "m";
+              else if (r >= H - 1 - n && r <= H - 2) b[r * W + c] = "M";
+            }
         }
         return b;
       }
@@ -364,8 +387,9 @@
             force: $("force").checked,
             back: $("back").checked,
             fly: $("fly").checked,
+            dir: $("dir").value,
           },
-          b: setup(t, W, H),
+          b: setup(t, W, H, $("dir").value),
           side: +$("first").value,
           hist: [],
           last: null,
@@ -440,7 +464,7 @@
         const { b, W, H, side, R } = s,
           caps = [],
           q = [],
-          D = KD.slice(4),
+          D = R.dir == "o" ? KD.slice(0, 4) : R.dir == "a" ? KD : KD.slice(4),
           inb = (r, c) => r >= 0 && c >= 0 && r < H && c < W;
         for (let i = 0; i < b.length; i++) {
           const p = b[i];
@@ -450,7 +474,7 @@
           const rec = (r, c, tk) => {
             let any = 0;
             for (const [dr, dc] of D) {
-              if (!king && !R.back && dr != -side) continue;
+              if (!king && !R.back && dr == side) continue;
               let rr = r + dr,
                 cc = c + dc;
               if (king && R.fly)
@@ -484,7 +508,7 @@
           rec((i / W) | 0, i % W, []);
           if (!co)
             for (const [dr, dc] of D) {
-              if (!king && dr != -side) continue;
+              if (!king && dr == side) continue;
               let rr = ((i / W) | 0) + dr,
                 cc = (i % W) + dc;
               while (inb(rr, cc) && !b[rr * W + cc]) {
@@ -663,12 +687,82 @@
             : "Kalah paksa"
           : ((r.score / 100) * (G.side == 1 ? 1 : -1)).toFixed(2) + " (+ = unggul Putih)";
       }
+      
+      /* ===== LEVEL EXPERT: jebakan selalu, pengorbanan minimal, berpikir cepat ===== */
+      const lvT = () => ($("lv").value == "x" ? 350 : +$("lv").value);
+      function expertTrap(s, ms, r) {
+        if (Math.abs(r.score) > 28000) return r;
+        const base = ev(s);
+        let full = [];
+        dl = Date.now() + 900;
+        nodes = 0;
+        try {
+          let cand = ms
+            .map((m) => {
+              const c = ap(s, m);
+              return { m, c, qv: -nm(c, 0, -1e9, 1e9, 1) };
+            })
+            .sort((a, b) => b.qv - a.qv)
+            .slice(0, 14);
+          for (const x of cand) x.vm = -nm(x.c, 2, -1e9, 1e9, 1);
+          const top = Math.max(...cand.map((x) => x.vm));
+          for (const x of cand.filter((x) => x.vm >= top - 60)) {
+            const reps = gen(x.c).map((o) => {
+              const c2 = ap(x.c, o);
+              return { o, c2, sh: -nm(c2, 0, -1e9, 1e9, 2), dp: -nm(c2, 2, -1e9, 1e9, 2) };
+            });
+            if (!reps.length) continue;
+            const bd = Math.max(...reps.map((z) => z.dp)), bs = Math.max(...reps.map((z) => z.sh));
+            const tempt = reps.filter((z) => z.sh >= bs - 50 && bd - z.dp >= 80).sort((a, b) => b.sh - a.sh);
+            let sac = Math.max(0, base - x.qv);
+            if (sac < 40) sac = 0;
+            full.push({ m: x.m, c: x.c, vm: x.vm, tempt, n: reps.length, sac, bad: reps.filter((z) => bd - z.dp >= 80).length, gap: tempt[0] ? bd - tempt[0].dp : 0 });
+          }
+        } catch (e) {}
+        if (!full.length) return r;
+        const pool = full.filter((z) => z.tempt.length);
+        const pick = pool.length
+          ? pool.sort((a, b) => a.sac - b.sac || b.gap - a.gap || b.vm - a.vm)[0]
+          : full.sort((a, b) => b.bad - a.bad || a.sac - b.sac || b.vm - a.vm)[0];
+        const tp = pick.tempt[0];
+        let ref = null;
+        if (tp) {
+          dl = Date.now() + 400;
+          try {
+            let bs = -1e9;
+            for (const m2 of gen(tp.c2)) {
+              const v = -nm(ap(tp.c2, m2), 1, -1e9, 1e9, 1);
+              if (v > bs) { bs = v; ref = m2; }
+            }
+          } catch (e) {}
+        }
+        return { ...r, m: pick.m, score: pick.vm, trap: 2, info: { c: pick.c, sac: pick.sac, tempt: pick.tempt.length, bad: pick.bad, n: pick.n, gap: pick.gap, tp, ref } };
+      }
+
+      /* ===== PENJELASAN LANGKAH ===== */
+      const PN = { K: "Raja", Q: "Menteri", R: "Benteng", B: "Gajah", N: "Kuda", P: "Pion", M: "Pion" };
+      function explain(s, r, L) {
+        const m = r.m, ch = s.type == "chess", p = s.b[m.f].toUpperCase();
+        let t = `<li><b>Langkah:</b> ${ch ? PN[p] : p == "K" ? "Raja" : "Pion"} ${sqn(m.f)} → ${sqn(m.t)}`;
+        if (ch && s.b[m.t]) t += `, memakan ${PN[s.b[m.t].toUpperCase()]}`;
+        if (!ch && m.cap.length) t += `, memakan ${m.cap.length} bidak`;
+        if (m.pr) t += ch ? ", promosi jadi Menteri" : ", naik jadi Raja";
+        t += "</li>";
+        const i = r.info;
+        if (i) {
+          t += `<li><b>Pengorbanan:</b> ${i.sac ? (i.sac / 100).toFixed(1) + " poin" : "nol (tidak ada bidak diberikan)"}</li>`;
+          t += i.tp
+            ? `<li><b>Jebakan:</b> jika lawan membalas <b>${mtxt(i.c, i.tp.o)}</b> (kelihatan menguntungkan), jawab ${i.ref ? "<b>" + mtxt(i.tp.c2, i.ref) + "</b>" : "dengan langkah terbaik"}; lawan rugi sekitar ${(i.gap / 100).toFixed(1)} poin. ${i.tempt} dari ${i.n} balasan lawan tampak wajar tapi salah.</li>`
+            : `<li><b>Jebakan:</b> belum ada umpan alami di posisi ini. Langkah ini membuat ${i.bad} dari ${i.n} balasan lawan merugikannya (hanya ${i.n - i.bad} yang selamat).</li>`;
+        } else t += `<li><b>Alasan:</b> ${L[1]}</li>`;
+        return `<ul class="why">${t}</ul>`;
+      }
       /* ===== JEBAKAN OTOMATIS: pilih umpan terbaik yang nilainya hampir sama dengan langkah terbaik ===== */
       function pickTrap(s, ms, r) {
         if (Math.abs(r.score) > 28000) return r;
         const d = Math.max(2, Math.min(r.depth - 1, 6)), base = ev(s);
         let best = null;
-        dl = Date.now() + +$("lv").value;
+        dl = Date.now() + lvT();
         nodes = 0;
         try {
           for (const m of ms) {
@@ -688,15 +782,19 @@
         busy = 1;
         $("info").textContent = "Mesin berpikir…";
         setTimeout(() => {
-          let r = think(G, ms, +$("lv").value);
-          if ($("atr").checked) r = pickTrap(G, ms, r);
-          const L = r.trap
+          let r = think(G, ms, lvT());
+          if ($("lv").value == "x") r = expertTrap(G, ms, r);
+          else if ($("atr").checked) r = pickTrap(G, ms, r);
+          const L = r.trap == 2
+            ? ["Jebakan Expert", "Langkah aman dengan pengorbanan minimal yang menyiapkan jebakan.", "#c0392b"]
+            : r.trap
             ? ["Jebakan otomatis", "Umpan materi yang, menurut hitungan mesin, merugikan lawan jika dimakan.", "#d35400"]
             : label(G, r);
           hint = [r.m.f, r.m.t];
           hintM = r.m;
           $("info").innerHTML =
             `<span class="tag" style="background:${L[2]}">${L[0]}</span> <b>${mtxt(G, r.m)}</b><br>${L[1]}<div class="sm">Eval ${scTxt(r)} · kedalaman ${r.depth} · ${r.nodes.toLocaleString()} node</div>`;
+          $("info").innerHTML += explain(G, r, L);
           busy = 0;
           if (auto) play(r.m);
           else draw();
@@ -830,6 +928,7 @@
             after();
           }),
       );
+      $("dir").onchange = mk;
       $("W").onchange = $("H").onchange = mk;
       /* ===== CARI JEBAKAN MASSAL (100-500) ===== */
       let scanning = 0;
@@ -946,13 +1045,8 @@
       $("bwin").onclick = floatWin;
 
       /* ===== VERSI & NOTIFIKASI UPDATE ===== */
-      const APP_VERSION = "1.5.0";
-      const CHANGELOG = [
-        "Cari Jebakan massal (hingga 500)",
-        "Jendela melayang",
-        "Notifikasi update",
-        "Jebakan otomatis di Saran & AI",
-      ];
+      const APP_VERSION = "1.6.0";
+      const CHANGELOG = ["Level Expert (cepat, selalu jebakan, korban minim)", "Penjelasan tiap langkah", "Arah jalan dam: diagonal / vertikal / semua", "Tampilan baru"];
       const notified = new Set();
       $("ver").textContent = "Versi " + APP_VERSION + " · Baru: " + CHANGELOG.join(" · ");
       function showUpdate(v) {
