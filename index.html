@@ -228,80 +228,101 @@
       select,input[type=number]{border-radius:6px;border:1px solid var(--bd);background:var(--cd);color:var(--tx);padding:4px 6px}
       .tag{border-radius:999px;padding:3px 12px}
       .why{margin:8px 0 0;padding:10px 14px 10px 28px;border-radius:10px;background:rgba(127,127,127,.14);line-height:1.55;font-size:14px}
+      /* ===== BAR AKSI ATAS & PANEL RAPI ===== */
+      #actions{position:sticky;top:0;z-index:8;display:flex;gap:8px;max-width:1000px;margin:0 auto 12px;padding:8px;background:var(--cd);border:1px solid var(--bd);border-radius:14px;box-shadow:var(--sh)}
+      #actions button{flex:1;margin:0;padding:12px 8px;font-size:15px}
+      .side{min-width:280px}
+      .grp{border:1px solid var(--bd);border-radius:12px;padding:10px 12px;margin-top:10px}
+      .grp>summary{cursor:pointer;font-weight:700;padding:2px 0}
+      .fld{display:grid;grid-template-columns:98px 1fr;gap:8px;align-items:center;margin:8px 0}
+      .fld>span{opacity:.75;font-size:13px}
+      .fld select,.fld input[type=number]{width:100%;box-sizing:border-box}
+      .dim{display:flex;gap:8px;align-items:center}
+      .chk{margin:6px 0;padding:7px 10px;border-radius:8px;background:rgba(127,127,127,.1);cursor:pointer;font-size:14px;flex-wrap:nowrap}
+      .btns{display:flex;gap:6px;flex-wrap:wrap}.btns button{margin:0;flex:1}
+      #info{min-height:0}
+      #info:empty::before{content:"Klik 💡 Saran Langkah untuk melihat langkah, label, dan penjelasannya.";opacity:.6;font-size:14px}
     </style>
   </head>
   <body>
     <div id="upd" class="hid"><span></span><button id="bup" class="pr">Muat ulang</button></div>
+    <div id="actions">
+      <button id="bs">💡 Saran Langkah</button><button id="bp" class="pr">▶ Jalankan Saran</button
+      ><button id="bu">↩ Undo</button>
+    </div>
     <div class="w">
       <div class="p" style="flex: 2; min-width: 300px">
         <h1>♞ Next Move Pro</h1>
         <div id="st" style="margin-bottom: 6px; font-weight: 600"></div>
         <div id="bw"><div id="bd"></div></div>
       </div>
-      <div class="p">
-        <b>Pengaturan</b>
-        <label
-          >Game
-          <select id="ty">
-            <option value="chess">Catur</option>
-            <option value="ck">Checkers / Dam</option>
-          </select></label
-        >
-        <label
-          >Lebar <input type="number" id="W" value="8" min="4" max="12" /> Tinggi
-          <input type="number" id="H" value="8" min="5" max="12"
-        /></label>
-        <div id="rc">
-          <label><input type="checkbox" id="dbl" checked /> Pion boleh langkah ganda</label
-          ><label><input type="checkbox" id="kc" /> Menang dengan menangkap Raja (tanpa aturan skak)</label>
+      <div class="p side">
+        <div id="info"></div>
+        <div class="btns" style="margin-top: 10px">
+          <button class="pr" id="bn">🔄 Game Baru</button><button id="bf">🔃 Balik Papan</button
+          ><button id="bt">⇄ Ganti Giliran</button>
         </div>
-        <div id="rk" class="hid">
-          <label>Arah jalan <select id="dir"><option value="d" selected>Diagonal (standar)</option><option value="a">Diagonal + vertikal/horizontal</option><option value="o">Vertikal/horizontal saja (gaya Turki)</option></select></label
-          ><label><input type="checkbox" id="force" checked /> Wajib makan</label
-          ><label><input type="checkbox" id="back" checked /> Pion boleh makan mundur</label
-          ><label><input type="checkbox" id="fly" checked /> Raja terbang (flying king)</label>
-        </div>
-        <label
-          >Level
-          <select id="lv">
-            <option value="x">⚡ Expert (cepat, selalu jebakan, korban minim)</option>
-            <option value="400">Cepat</option>
-            <option value="2000" selected>Kuat</option>
-            <option value="6000">Pro (6 dtk)</option>
-          </select></label
-        >
-        <label
-          >Jalan duluan
-          <select id="first">
-            <option value="1">Putih</option>
-            <option value="-1">Hitam</option>
-          </select></label
-        ><label><input type="checkbox" id="atr" checked /> 🪤 Jebakan otomatis (saran &amp; AI memilih umpan)</label
-        ><label
-          >Lawan AI
-          <select id="ai">
-            <option value="0" selected>Tidak (main dua warna sendiri)</option>
-            <option value="-1">AI main Hitam</option>
-            <option value="1">AI main Putih</option>
-          </select></label
-        >
-        <button class="pr" id="bn">Game Baru</button><button id="bs">💡 Saran Langkah</button
-        ><button id="bp" class="pr">▶ Jalankan Saran</button><button id="bu">Undo</button
-        ><button id="bf">Balik Papan</button><button id="bt">⇄ Ganti Giliran</button>
-        <div style="margin-top: 8px">
-          <label
-            >Jumlah jebakan dicari
-            <input type="number" id="tn" value="100" min="1" max="500" style="width: 70px" /></label
-          ><button id="bj" class="pr">🔍 Cari Jebakan</button><button id="bwin">🪟 Jendela Melayang</button
-          ><button id="bnt">🔔 Notifikasi Update</button>
-        </div>
-        <div id="tl"></div>
-        <div id="info" style="margin-top: 10px"></div>
-        <div class="sm" id="ver"></div>
+
+        <details class="grp" open>
+          <summary>⚙️ Pengaturan Game</summary>
+          <div class="fld"><span>Game</span>
+            <select id="ty"><option value="chess">Catur</option><option value="ck">Checkers / Dam</option></select></div>
+          <div class="fld"><span>Ukuran papan</span>
+            <div class="dim"><input type="number" id="W" value="8" min="4" max="12" /> ×
+              <input type="number" id="H" value="8" min="5" max="12" /></div></div>
+          <div class="fld"><span>Jalan duluan</span>
+            <select id="first"><option value="1">Putih</option><option value="-1">Hitam</option></select></div>
+          <div class="fld"><span>Lawan AI</span>
+            <select id="ai">
+              <option value="0" selected>Tidak (main dua warna sendiri)</option>
+              <option value="-1">AI main Hitam</option><option value="1">AI main Putih</option>
+            </select></div>
+          <div class="fld"><span>Level</span>
+            <select id="lv">
+              <option value="x">⚡ Expert (cepat, selalu jebakan, korban minim)</option>
+              <option value="400">Cepat</option><option value="2000" selected>Kuat</option>
+              <option value="6000">Pro (6 dtk)</option>
+            </select></div>
+          <label class="chk"><input type="checkbox" id="atr" checked /> 🪤 Jebakan otomatis (saran &amp; AI memilih umpan)</label>
+        </details>
+
+        <details class="grp" open>
+          <summary>📏 Aturan</summary>
+          <div id="rc">
+            <label class="chk"><input type="checkbox" id="dbl" checked /> Pion boleh langkah ganda</label>
+            <label class="chk"><input type="checkbox" id="kc" /> Menang dengan menangkap Raja (tanpa aturan skak)</label>
+          </div>
+          <div id="rk" class="hid">
+            <div class="fld"><span>Arah jalan</span>
+              <select id="dir">
+                <option value="d" selected>Diagonal (standar)</option>
+                <option value="a">Diagonal + vertikal/horizontal</option>
+                <option value="o">Vertikal/horizontal saja (gaya Turki)</option>
+              </select></div>
+            <label class="chk"><input type="checkbox" id="force" checked /> Wajib makan</label>
+            <label class="chk"><input type="checkbox" id="back" checked /> Pion boleh makan mundur</label>
+            <label class="chk"><input type="checkbox" id="fly" checked /> Raja terbang (flying king)</label>
+          </div>
+        </details>
+
+        <details class="grp">
+          <summary>🔍 Cari Jebakan Massal</summary>
+          <div class="fld"><span>Jumlah (1–500)</span>
+            <input type="number" id="tn" value="100" min="1" max="500" /></div>
+          <div class="btns"><button id="bj" class="pr">🔍 Cari Jebakan</button></div>
+          <div id="tl"></div>
+        </details>
+
+        <details class="grp">
+          <summary>🧰 Alat</summary>
+          <div class="btns"><button id="bwin">🪟 Jendela Melayang</button><button id="bnt">🔔 Notifikasi Update</button></div>
+        </details>
+
+        <div class="sm" id="ver" style="margin-top: 12px"></div>
         <div class="sm">
           Klik bidak lalu kotak tujuan. Mesin: negamax + alpha-beta, iterative deepening, quiescence. Label
-          (Brilliant, Gambit, Jebakan) ditebak dari hasil pencarian. Catatan: belum ada rokade &amp; en
-          passant, promosi selalu jadi Menteri.
+          (Brilliant, Gambit, Jebakan) ditebak dari hasil pencarian. Catatan: belum ada rokade &amp; en passant,
+          promosi selalu jadi Menteri.
         </div>
       </div>
     </div>
@@ -1045,7 +1066,7 @@
       $("bwin").onclick = floatWin;
 
       /* ===== VERSI & NOTIFIKASI UPDATE ===== */
-      const APP_VERSION = "1.6.0";
+      const APP_VERSION = "1.6.1";
       const CHANGELOG = ["Level Expert (cepat, selalu jebakan, korban minim)", "Penjelasan tiap langkah", "Arah jalan dam: diagonal / vertikal / semua", "Tampilan baru"];
       const notified = new Set();
       $("ver").textContent = "Versi " + APP_VERSION + " · Baru: " + CHANGELOG.join(" · ");
