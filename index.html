@@ -116,5 +116,5 @@ sel=own(G.b[i],G.side)?i:null;draw()};
 $('bn').onclick=mk;$('bs').onclick=()=>suggest(0);$('bp').onclick=()=>{if(busy||over())return;hintM?play(hintM):suggest(1)};$('bt').onclick=()=>{if(busy)return;G.side=-G.side;sel=hint=hintM=null;draw();after()};$('first').onchange=$('ai').onchange=mk;$('bf').onclick=()=>{G.flip^=1;draw()};
 $('bu').onclick=()=>{if(busy)return;let n=+$('ai').value&&G.hist.length>1?2:1;while(n--&&G.hist.length){const h=G.hist.pop();G.b=h.b;G.last=h.last;G.side=-G.side}sel=hint=hintM=null;draw();$('st').textContent='Giliran: '+(G.side==1?'Putih':'Hitam')};
 $('ty').onchange=()=>{const c=$('ty').value=='chess';$('rc').classList.toggle('hid',!c);$('rk').classList.toggle('hid',c);mk()};
-addEventListener('resize',()=>G&&draw());mk();
+['dbl','kc','force','back','fly'].forEach(k=>$(k).onchange=()=>{G.R[k]=$(k).checked;sel=hint=hintM=null;$('info').innerHTML='';draw();after()});$('W').onchange=$('H').onchange=mk;addEventListener('resize',()=>G&&draw());mk();
 </script></body></html>
