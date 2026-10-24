@@ -3,7 +3,7 @@
   <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover" />
-    <title>Next Move Pro – Catur & Checkers</title>
+    <title>Next Move Pro – Catur, Checkers & Tic-Tac-Toe</title>
     <style>
       :root {
         --bg: #f4f1ea;
@@ -211,7 +211,7 @@
       .tr:hover {
         background: rgba(127, 127, 127, 0.15);
       }
-    
+
       /* ===== TAMPILAN BARU ===== */
       :root{--acc:#2e7d32;--acc2:#43a047;--sq1:#f0d9b5;--sq2:#b58863;--sh:0 6px 22px rgba(0,0,0,.12)}
       body{min-height:100vh;padding:16px}
@@ -220,6 +220,7 @@
       #st{padding:8px 12px;border-radius:10px;background:rgba(127,127,127,.14)}
       .l{background:var(--sq1)}.d{background:var(--sq2)}
       #bd{border:6px solid #5b3a1e;border-radius:10px;box-shadow:0 10px 30px rgba(0,0,0,.3)}
+      #bd.ttt{border-color:#4a5568}
       .sq:hover{filter:brightness(1.1)}
       button{transition:.15s;font-weight:600}
       button:hover{transform:translateY(-1px);filter:brightness(1.08)}
@@ -242,87 +243,114 @@
       .btns{display:flex;gap:6px;flex-wrap:wrap}.btns button{margin:0;flex:1}
       #info{min-height:0}
       #info:empty::before{content:"Klik 💡 Saran Langkah untuk melihat langkah, label, dan penjelasannya.";opacity:.6;font-size:14px}
+
+      /* ===== BIDAK: paksa glyph teks (bukan emoji) + pion SVG ===== */
+      .sq span{font-variant-emoji:text;font-family:"Segoe UI Symbol","Noto Sans Symbols 2","Noto Sans Symbols","Apple Symbols","DejaVu Sans",sans-serif;display:flex;align-items:center;justify-content:center}
+      .sq svg{width:calc(var(--s) * .74);height:calc(var(--s) * .74);display:block}
+      .pw svg{color:#fff}.pb svg{color:#161616}
+      /* ===== TIC-TAC-TOE ===== */
+      .sq.t{background:rgba(127,127,127,.08);outline:1px solid var(--bd);outline-offset:-1px;font-weight:800}
+      .sq.t .tx{color:#d84343;text-shadow:none}
+      .sq.t .to{color:#2f7de1;text-shadow:none}
+      .sq.wn{background:rgba(255,196,0,.45)}
+      /* ===== TAMPILAN JENDELA MELAYANG ===== */
+      body.pip{padding:6px;min-height:0}
+      .pip h1{display:none}
+      .pip .w{flex-direction:column;flex-wrap:nowrap;gap:8px}
+      .pip .p{flex:none!important;min-width:0!important;width:auto;padding:10px;box-sizing:border-box}
+      .pip #actions{margin:0 0 8px;padding:6px;gap:6px}
+      .pip #actions button{padding:10px 4px;font-size:13px}
+      .pip .side{min-width:0}
+      .pip .why{font-size:13px}
+      .pip #st{font-size:14px;padding:6px 10px}
     </style>
   </head>
   <body>
-    <div id="upd" class="hid"><span></span><button id="bup" class="pr">Muat ulang</button></div>
-    <div id="actions">
-      <button id="bs">💡 Saran Langkah</button><button id="bp" class="pr">▶ Jalankan Saran</button
-      ><button id="bu">↩ Undo</button>
-    </div>
-    <div class="w">
-      <div class="p" style="flex: 2; min-width: 300px">
-        <h1>♞ Next Move Pro</h1>
-        <div id="st" style="margin-bottom: 6px; font-weight: 600"></div>
-        <div id="bw"><div id="bd"></div></div>
+    <div id="app">
+      <div id="upd" class="hid"><span></span><button id="bup" class="pr">Muat ulang</button></div>
+      <div id="actions">
+        <button id="bs">💡 Saran Langkah</button><button id="bp" class="pr">▶ Jalankan Saran</button
+        ><button id="bu">↩ Undo</button>
       </div>
-      <div class="p side">
-        <div id="info"></div>
-        <div class="btns" style="margin-top: 10px">
-          <button class="pr" id="bn">🔄 Game Baru</button><button id="bf">🔃 Balik Papan</button
-          ><button id="bt">⇄ Ganti Giliran</button>
+      <div class="w">
+        <div class="p" style="flex: 2; min-width: 300px">
+          <h1>♞ Next Move Pro</h1>
+          <div id="st" style="margin-bottom: 6px; font-weight: 600"></div>
+          <div id="bw"><div id="bd"></div></div>
         </div>
-
-        <details class="grp" open>
-          <summary>⚙️ Pengaturan Game</summary>
-          <div class="fld"><span>Game</span>
-            <select id="ty"><option value="chess">Catur</option><option value="ck">Checkers / Dam</option></select></div>
-          <div class="fld"><span>Ukuran papan</span>
-            <div class="dim"><input type="number" id="W" value="8" min="4" max="12" /> ×
-              <input type="number" id="H" value="8" min="5" max="12" /></div></div>
-          <div class="fld"><span>Jalan duluan</span>
-            <select id="first"><option value="1">Putih</option><option value="-1">Hitam</option></select></div>
-          <div class="fld"><span>Lawan AI</span>
-            <select id="ai">
-              <option value="0" selected>Tidak (main dua warna sendiri)</option>
-              <option value="-1">AI main Hitam</option><option value="1">AI main Putih</option>
-            </select></div>
-          <div class="fld"><span>Level</span>
-            <select id="lv">
-              <option value="x">⚡ Expert (cepat, selalu jebakan, korban minim)</option>
-              <option value="400">Cepat</option><option value="2000" selected>Kuat</option>
-              <option value="6000">Pro (6 dtk)</option>
-            </select></div>
-          <label class="chk"><input type="checkbox" id="atr" checked /> 🪤 Jebakan otomatis (saran &amp; AI memilih umpan)</label>
-        </details>
-
-        <details class="grp" open>
-          <summary>📏 Aturan</summary>
-          <div id="rc">
-            <label class="chk"><input type="checkbox" id="dbl" checked /> Pion boleh langkah ganda</label>
-            <label class="chk"><input type="checkbox" id="kc" /> Menang dengan menangkap Raja (tanpa aturan skak)</label>
+        <div class="p side">
+          <div id="info"></div>
+          <div class="btns" style="margin-top: 10px">
+            <button class="pr" id="bn">🔄 Game Baru</button><button id="bf">🔃 Balik Papan</button
+            ><button id="bt">⇄ Ganti Giliran</button>
           </div>
-          <div id="rk" class="hid">
-            <div class="fld"><span>Arah jalan</span>
-              <select id="dir">
-                <option value="d" selected>Diagonal (standar)</option>
-                <option value="a">Diagonal + vertikal/horizontal</option>
-                <option value="o">Vertikal/horizontal saja (gaya Turki)</option>
+
+          <details class="grp" open>
+            <summary>⚙️ Pengaturan Game</summary>
+            <div class="fld"><span>Game</span>
+              <select id="ty"><option value="chess">Catur</option><option value="ck">Checkers / Dam</option><option value="ttt">Tic-Tac-Toe (XO)</option></select></div>
+            <div class="fld"><span>Ukuran papan</span>
+              <div class="dim"><input type="number" id="W" value="8" min="3" max="12" /> ×
+                <input type="number" id="H" value="8" min="3" max="12" /></div></div>
+            <div class="fld"><span>Jalan duluan</span>
+              <select id="first"><option value="1">Putih</option><option value="-1">Hitam</option></select></div>
+            <div class="fld"><span>Lawan AI</span>
+              <select id="ai">
+                <option value="0" selected>Tidak (main dua warna sendiri)</option>
+                <option value="-1">AI main Hitam</option><option value="1">AI main Putih</option>
               </select></div>
-            <label class="chk"><input type="checkbox" id="force" checked /> Wajib makan</label>
-            <label class="chk"><input type="checkbox" id="back" checked /> Pion boleh makan mundur</label>
-            <label class="chk"><input type="checkbox" id="fly" checked /> Raja terbang (flying king)</label>
+            <div class="fld"><span>Level</span>
+              <select id="lv">
+                <option value="x">⚡ Expert (cepat, selalu jebakan, korban minim)</option>
+                <option value="400">Cepat</option><option value="2000" selected>Kuat</option>
+                <option value="6000">Pro (6 dtk)</option>
+              </select></div>
+            <label class="chk"><input type="checkbox" id="atr" checked /> 🪤 Jebakan otomatis (catur/dam; Tic-Tac-Toe selalu jebakan)</label>
+          </details>
+
+          <details class="grp" open>
+            <summary>📏 Aturan</summary>
+            <div id="rc">
+              <label class="chk"><input type="checkbox" id="dbl" checked /> Pion boleh langkah ganda</label>
+              <label class="chk"><input type="checkbox" id="kc" /> Menang dengan menangkap Raja (tanpa aturan skak)</label>
+            </div>
+            <div id="rk" class="hid">
+              <div class="fld"><span>Arah jalan</span>
+                <select id="dir">
+                  <option value="d" selected>Diagonal (standar)</option>
+                  <option value="a">Diagonal + vertikal/horizontal</option>
+                  <option value="o">Vertikal/horizontal saja (gaya Turki)</option>
+                </select></div>
+              <label class="chk"><input type="checkbox" id="force" checked /> Wajib makan</label>
+              <label class="chk"><input type="checkbox" id="back" checked /> Pion boleh makan mundur</label>
+              <label class="chk"><input type="checkbox" id="fly" checked /> Raja terbang (flying king)</label>
+            </div>
+            <div id="rt" class="hid">
+              <div class="fld"><span>Menang jika</span>
+                <div class="dim"><input type="number" id="KN" value="3" min="3" max="12" /> berjajar</div></div>
+              <div class="sm">Papan bebas, mis. 3×3, 5×5, 10×10. Mesin selalu memilih langkah berjebakan: di antara langkah yang sama kuat, ia mengambil yang membuat paling banyak balasan lawan jadi salah.</div>
+            </div>
+          </details>
+
+          <details class="grp">
+            <summary>🔍 Cari Jebakan Massal</summary>
+            <div class="fld"><span>Jumlah (1–500)</span>
+              <input type="number" id="tn" value="100" min="1" max="500" /></div>
+            <div class="btns"><button id="bj" class="pr">🔍 Cari Jebakan</button></div>
+            <div id="tl"></div>
+          </details>
+
+          <details class="grp">
+            <summary>🧰 Alat</summary>
+            <div class="btns"><button id="bwin">🪟 Jendela Melayang</button><button id="bnt">🔔 Notifikasi Update</button></div>
+          </details>
+
+          <div class="sm" id="ver" style="margin-top: 12px"></div>
+          <div class="sm">
+            Klik bidak lalu kotak tujuan (Tic-Tac-Toe: klik kotak kosong). Mesin: negamax + alpha-beta, iterative deepening,
+            quiescence, plus analisis balasan lawan untuk mencegah blunder. Label (Brilliant, Gambit, Jebakan) ditebak dari
+            hasil pencarian. Catatan: belum ada rokade &amp; en passant, promosi selalu jadi Menteri.
           </div>
-        </details>
-
-        <details class="grp">
-          <summary>🔍 Cari Jebakan Massal</summary>
-          <div class="fld"><span>Jumlah (1–500)</span>
-            <input type="number" id="tn" value="100" min="1" max="500" /></div>
-          <div class="btns"><button id="bj" class="pr">🔍 Cari Jebakan</button></div>
-          <div id="tl"></div>
-        </details>
-
-        <details class="grp">
-          <summary>🧰 Alat</summary>
-          <div class="btns"><button id="bwin">🪟 Jendela Melayang</button><button id="bnt">🔔 Notifikasi Update</button></div>
-        </details>
-
-        <div class="sm" id="ver" style="margin-top: 12px"></div>
-        <div class="sm">
-          Klik bidak lalu kotak tujuan. Mesin: negamax + alpha-beta, iterative deepening, quiescence. Label
-          (Brilliant, Gambit, Jebakan) ditebak dari hasil pencarian. Catatan: belum ada rokade &amp; en passant,
-          promosi selalu jadi Menteri.
         </div>
       </div>
     </div>
@@ -333,7 +361,10 @@
       /* ===== DATA & STATE ===== */
       const V = { P: 100, N: 320, B: 330, R: 500, Q: 900, K: 20000 },
         C = { M: 100, K: 300 },
-        GL = { K: "♚", Q: "♛", R: "♜", B: "♝", N: "♞", P: "♟" };
+        T = "\uFE0E", /* selector presentasi teks: cegah glyph jadi emoji */
+        GL = { K: "♚" + T, Q: "♛" + T, R: "♜" + T, B: "♝" + T, N: "♞" + T, P: "" },
+        PAWN =
+          '<svg viewBox="0 0 45 45" aria-hidden="true"><g fill="currentColor" stroke="#000" stroke-width="1.7" stroke-linejoin="round"><circle cx="22.5" cy="12.5" r="5.5"/><path d="M17 21h11l3.5 11h-18z"/><rect x="11" y="33" width="23" height="5" rx="1.5"/></g></svg>';
       const ND = [
           [1, 2],
           [2, 1],
@@ -353,6 +384,12 @@
           [1, -1],
           [-1, 1],
           [-1, -1],
+        ],
+        DIR4 = [
+          [0, 1],
+          [1, 0],
+          [1, 1],
+          [1, -1],
         ];
       let G,
         sel = null,
@@ -360,10 +397,15 @@
         hintM = null,
         busy = 0,
         nodes,
-        dl;
+        dl,
+        kt = 0;
+      const sn = (s) => (G && G.type == "ttt" ? (s == 1 ? "X" : "O") : s == 1 ? "Putih" : "Hitam");
+      const fv = (x) => (Math.abs(x) > 28000 ? (x > 0 ? "menang paksa" : "kalah paksa") : (x / 100).toFixed(1));
+      const gapTxt = (g) => (g > 20000 ? "lawan kalah paksa" : "lawan rugi sekitar " + (g / 100).toFixed(1) + " poin");
       /* ===== PAPAN AWAL ===== */
       function setup(t, W, H, dir) {
         const b = Array(W * H).fill(null);
+        if (t == "ttt") return b;
         if (t == "chess") {
           const K = W >> 1,
             Q = K - 1,
@@ -395,9 +437,14 @@
         return b;
       }
       function mk() {
-        const W = Math.min(12, Math.max(4, +$("W").value || 8)),
-          H = Math.min(12, Math.max(5, +$("H").value || 8)),
-          t = $("ty").value;
+        const t = $("ty").value,
+          tt = t == "ttt",
+          W = Math.min(12, Math.max(tt ? 3 : 4, +$("W").value || (tt ? 3 : 8))),
+          H = Math.min(12, Math.max(tt ? 3 : 5, +$("H").value || (tt ? 3 : 8))),
+          k = Math.min(Math.max(W, H), Math.max(3, +$("KN").value || 3));
+        $("W").value = W;
+        $("H").value = H;
+        $("KN").value = k;
         G = {
           type: t,
           W,
@@ -409,6 +456,7 @@
             back: $("back").checked,
             fly: $("fly").checked,
             dir: $("dir").value,
+            k,
           },
           b: setup(t, W, H, $("dir").value),
           side: +$("first").value,
@@ -421,9 +469,136 @@
         draw();
         after();
       }
+      /* ===== TIC-TAC-TOE: helper ===== */
+      const WCACHE = {};
+      function wins(W, H, k) {
+        const key = W + "," + H + "," + k;
+        if (WCACHE[key]) return WCACHE[key];
+        const L = [];
+        for (let r = 0; r < H; r++)
+          for (let c = 0; c < W; c++)
+            for (const [dr, dc] of DIR4) {
+              const er = r + dr * (k - 1),
+                ec = c + dc * (k - 1);
+              if (er < 0 || er >= H || ec < 0 || ec >= W) continue;
+              const w = [];
+              for (let t = 0; t < k; t++) w.push((r + dr * t) * W + c + dc * t);
+              L.push(w);
+            }
+        return (WCACHE[key] = L);
+      }
+      function winAt(b, W, H, k, i, mk) {
+        const r0 = (i / W) | 0,
+          c0 = i % W;
+        for (const [dr, dc] of DIR4) {
+          let n = 1;
+          for (const sg of [1, -1]) {
+            let r = r0 + dr * sg,
+              c = c0 + dc * sg;
+            while (r >= 0 && c >= 0 && r < H && c < W && b[r * W + c] == mk) {
+              n++;
+              r += dr * sg;
+              c += dc * sg;
+            }
+          }
+          if (n >= k) return true;
+        }
+        return false;
+      }
+      function winLine(s) {
+        if (s.type != "ttt" || !s.last) return [];
+        const i = s.last[1],
+          m = s.b[i],
+          k = s.R.k;
+        if (!m || !winAt(s.b, s.W, s.H, k, i, m)) return [];
+        const out = new Set([i]),
+          r0 = (i / s.W) | 0,
+          c0 = i % s.W;
+        for (const [dr, dc] of DIR4) {
+          const cells = [i];
+          for (const sg of [1, -1]) {
+            let r = r0 + dr * sg,
+              c = c0 + dc * sg;
+            while (r >= 0 && c >= 0 && r < s.H && c < s.W && s.b[r * s.W + c] == m) {
+              cells.push(r * s.W + c);
+              r += dr * sg;
+              c += dc * sg;
+            }
+          }
+          if (cells.length >= k) cells.forEach((x) => out.add(x));
+        }
+        return [...out];
+      }
+      /* mode 0 = pencarian (pangkas langkah paksa), 1 = analisis lawan (semua balasan wajar), 2 = semua kotak kosong */
+      function genT(s, co, mode) {
+        const { b, W, H, side, R } = s,
+          k = R.k,
+          me = side == 1 ? "X" : "o",
+          op = side == 1 ? "o" : "X",
+          emp = [];
+        let any = 0;
+        for (let i = 0; i < b.length; i++) b[i] ? (any = 1) : emp.push(i);
+        if (!emp.length) return [];
+        const mv = (a) => a.map((t) => ({ f: t, t }));
+        if (mode == 2) return mv(emp);
+        const wc = (m) =>
+          emp.filter((i) => {
+            b[i] = m;
+            const w = winAt(b, W, H, k, i, m);
+            b[i] = null;
+            return w;
+          });
+        if (mode == 0) {
+          const w = wc(me);
+          if (w.length) return mv(w.slice(0, 1));
+          const bl = wc(op);
+          if (bl.length) return mv(bl);
+        }
+        if (co) return [];
+        if (!any) {
+          if (W * H <= 25) return mv(emp);
+          const cr = H >> 1,
+            cc = W >> 1;
+          return mv([cr * W + cc, cr * W + cc - 1, (cr - 1) * W + cc, (cr - 1) * W + cc - 1].filter((i) => i >= 0));
+        }
+        if (W * H <= 25) return mv(emp);
+        const near = emp.filter((i) => {
+          const r = (i / W) | 0,
+            c = i % W;
+          for (let dr = -2; dr <= 2; dr++)
+            for (let dc = -2; dc <= 2; dc++) {
+              const rr = r + dr,
+                cc = c + dc;
+              if (rr >= 0 && cc >= 0 && rr < H && cc < W && b[rr * W + cc]) return true;
+            }
+          return false;
+        });
+        return mv(near.length ? near : emp);
+      }
+      function evT(s) {
+        const L = wins(s.W, s.H, s.R.k),
+          b = s.b,
+          k = s.R.k;
+        let t = 0;
+        for (const w of L) {
+          let x = 0,
+            o = 0;
+          for (const i of w) {
+            const p = b[i];
+            if (p == "X") x++;
+            else if (p) o++;
+          }
+          if (x && o) continue;
+          const c = x || o;
+          if (!c) continue;
+          const v = c == k - 1 ? 800 : 10 * Math.pow(6, c - 1);
+          t += x ? v : -v;
+        }
+        return t * s.side;
+      }
       /* ===== PEMBANGKIT LANGKAH ===== */
       function gen(s, co) {
-        return s.type == "chess" ? genC(s, co) : genK(s, co);
+        return s.type == "chess" ? genC(s, co) : s.type == "ttt" ? genT(s, co, 0) : genK(s, co);
       }
       function genC(s, co) {
         const { b, W, H, side, R } = s,
@@ -545,18 +720,22 @@
       }
       /* ===== EKSEKUSI LANGKAH & EVALUASI ===== */
       function ap(s, m) {
-        const b = s.b.slice(),
-          p = b[m.f];
+        const b = s.b.slice();
+        if (s.type == "ttt") {
+          const mkr = s.side == 1 ? "X" : "o";
+          b[m.t] = mkr;
+          const n = { type: "ttt", W: s.W, H: s.H, R: s.R, b, side: -s.side };
+          if (winAt(b, s.W, s.H, s.R.k, m.t, mkr)) n.w = 1;
+          return n;
+        }
+        const p = b[m.f];
         b[m.f] = null;
         if (m.cap) m.cap.forEach((j) => (b[j] = null));
         b[m.t] = m.pr ? (s.type == "chess" ? (s.side == 1 ? "Q" : "q") : s.side == 1 ? "K" : "k") : p;
         return { type: s.type, W: s.W, H: s.H, R: s.R, b, side: -s.side };
       }
-      function capV(s, m) {
-        if (s.type == "chess") return (s.b[m.t] ? V[s.b[m.t].toUpperCase()] : 0) + (m.pr ? 800 : 0);
-        return m.cap.reduce((a, j) => a + C[s.b[j].toUpperCase()], 0) + (m.pr ? 200 : 0);
-      }
       function ev(s) {
+        if (s.type == "ttt") return evT(s);
         const { b, W, H } = s;
         let t = 0;
         for (let i = 0; i < b.length; i++) {
@@ -574,7 +753,6 @@
             if (u == "P") v += adv * 4 + cen * 2;
             else if (u == "N" || u == "B") v += cen * 5;
             else if (u == "Q") v += cen;
-            else if (u == "K") v = v - cen * 0;
           } else {
             v = C[u];
             if (u == "M") v += adv * 5 + cen * 2;
@@ -585,10 +763,13 @@
         return t * s.side;
       }
       function order(s, ms) {
-        const sc = (m) =>
-          s.type == "chess"
-            ? (s.b[m.t] ? V[s.b[m.t].toUpperCase()] * 10 - V[s.b[m.f].toUpperCase()] : 0) + (m.pr ? 800 : 0)
-            : m.cap.length * 1000 + (m.pr ? 50 : 0);
+        const sc =
+          s.type == "ttt"
+            ? (m) => -(Math.abs((m.t % s.W) - (s.W - 1) / 2) + Math.abs(((m.t / s.W) | 0) - (s.H - 1) / 2))
+            : (m) =>
+                s.type == "chess"
+                  ? (s.b[m.t] ? V[s.b[m.t].toUpperCase()] * 10 - V[s.b[m.f].toUpperCase()] : 0) + (m.pr ? 800 : 0)
+                  : m.cap.length * 1000 + (m.pr ? 50 : 0);
         return ms
           .map((m) => [sc(m), m])
           .sort((a, b) => b[0] - a[0])
@@ -596,6 +777,7 @@
       }
       /* ===== MESIN PENCARI (negamax + alpha-beta) ===== */
       function nm(s, d, a, B, ply) {
+        if (s.w) return -(30000 - ply); /* pemain yang jalan sudah kalah (lawan membentuk garis) */
         if ((++nodes & 511) == 0 && Date.now() > dl) throw 0;
         const q = d <= 0;
         let best = -1e9;
@@ -605,7 +787,7 @@
           if (best > a) a = best;
         }
         const ms = order(s, gen(s, q));
-        if (!ms.length && !q) return s.type == "chess" ? 0 : -29000 + ply;
+        if (!ms.length && !q) return s.type == "chess" || s.type == "ttt" ? 0 : -29000 + ply;
         for (const m of ms) {
           if (s.type == "chess" && s.b[m.t] && s.b[m.t].toUpperCase() == "K") return 30000 - ply;
           const sc = -nm(ap(s, m), d - 1, -B, -a, ply + 1);
@@ -620,6 +802,7 @@
         return best;
       }
       function legal(s) {
+        if (s.type == "ttt") return genT(s, false, 2);
         const ms = gen(s);
         if (s.type != "chess" || s.R.kc) return ms;
         const k = s.side == 1 ? "K" : "k";
@@ -636,6 +819,7 @@
         dl = Date.now() + time;
         nodes = 0;
         let res = null;
+        const em = s.b.filter((x) => !x).length;
         ms = order(s, ms);
         for (let d = 1; d <= 40; d++) {
           try {
@@ -651,6 +835,7 @@
             res = { m: cur, score: a, depth: d, nodes };
             ms = [cur].concat(ms.filter((x) => x != cur));
             if (Math.abs(a) > 28000 || ms.length == 1) break;
+            if (s.type == "ttt" && d >= em) break;
           } catch (e) {
             break;
           }
@@ -660,6 +845,7 @@
       }
       const sqn = (i) => String.fromCharCode(97 + (i % G.W)) + (G.H - ((i / G.W) | 0));
       function mtxt(s, m) {
+        if (s.type == "ttt") return (s.side == 1 ? "X" : "O") + " " + sqn(m.t);
         const p = s.b[m.f].toUpperCase();
         return (
           (s.type == "chess" && p != "P" ? p : "") +
@@ -673,6 +859,12 @@
       function label(s, r) {
         dl = Date.now() + 8000;
         nodes = 0;
+        if (s.type == "ttt")
+          return Math.abs(r.score) > 28000
+            ? r.score > 0
+              ? ["Menang paksa", "Ada jalur paksa menuju kemenangan.", "#c0392b"]
+              : ["Posisi kalah", "Semua langkah kalah paksa; ini yang paling lama bertahan.", "#777"]
+            : ["Solid", "Langkah terbaik menurut mesin.", "#3b7d3b"];
         const ch = s.type == "chess",
           base = ev(s),
           qv = -nm(ap(s, r.m), 0, -1e9, 1e9, 1),
@@ -706,16 +898,65 @@
           ? r.score > 0
             ? "Menang paksa"
             : "Kalah paksa"
-          : ((r.score / 100) * (G.side == 1 ? 1 : -1)).toFixed(2) + " (+ = unggul Putih)";
+          : ((r.score / 100) * (G.side == 1 ? 1 : -1)).toFixed(2) + " (+ = unggul " + (G.type == "ttt" ? "X" : "Putih") + ")";
       }
-      
-      /* ===== LEVEL EXPERT: jebakan selalu, pengorbanan minimal, berpikir cepat ===== */
+
+      /* ===== ANALISIS LAWAN: prediksi balasan + penjaga blunder ===== */
       const lvT = () => ($("lv").value == "x" ? 350 : +$("lv").value);
+      function predict(s, m) {
+        const c = ap(s, m),
+          out = [];
+        out.partial = 0;
+        if (c.w) return out;
+        const rs = s.type == "ttt" ? genT(c, false, 1) : legal(c);
+        if (!rs.length) return out;
+        const d = s.type == "ttt" ? (s.W * s.H <= 25 ? 3 : 2) : 3;
+        dl = Date.now() + 900;
+        nodes = 0;
+        try {
+          for (const o of order(c, rs)) {
+            const c2 = ap(c, o);
+            out.push({ o, c, v: -nm(c2, d, -1e9, 1e9, 2) });
+          }
+        } catch (e) {
+          out.partial = 1;
+        }
+        out.sort((a, b) => b.v - a.v);
+        return out;
+      }
+      /* Bandingkan langkah pilihan (umpan) dengan langkah terbaik murni pada kedalaman analisis yang sama.
+         Jika balasan terbaik lawan membuat umpan lebih buruk dari langkah aman, umpan dibatalkan. */
+      function guard(s, base, r) {
+        const pr = predict(s, r.m);
+        if (r.m !== base.m && Math.abs(base.score) <= 28000) {
+          const pb = predict(s, base.m);
+          if (pr.length && pb.length && !pr.partial && !pb.partial && -pr[0].v < -pb[0].v - 60)
+            return { ...base, pred: pb, guarded: 1 };
+        }
+        return { ...r, pred: pr };
+      }
+      function predLi(s, r) {
+        const p = r.pred;
+        if (!p || !p.length) return "";
+        const top = p
+            .slice(0, 3)
+            .map((z) => `<b>${mtxt(z.c, z.o)}</b> (${fv(-z.v)})`)
+            .join(", "),
+          worst = -p[0].v;
+        let v;
+        if (worst <= -28000) v = "⚠ Bahaya: lawan punya jalan menang paksa; tidak ada langkah yang lebih aman.";
+        else if (r.guarded)
+          v = "Langkah umpan dibatalkan karena analisis balasan lawan menunjukkan risiko; ini pilihan teraman.";
+        else v = `✔ Aman: setelah balasan terbaik lawan, posisi kita ${fv(worst)} (poin, sudut pandang kita).`;
+        return `<li><b>Prediksi lawan:</b> ${top}. <span class="sm">angka = nilai bagi kita</span></li><li><b>Cek blunder:</b> ${v}</li>`;
+      }
+
+      /* ===== LEVEL EXPERT: jebakan selalu, pengorbanan minimal, berpikir cepat ===== */
       function expertTrap(s, ms, r) {
         if (Math.abs(r.score) > 28000) return r;
         const base = ev(s);
         let full = [];
-        dl = Date.now() + 900;
+        dl = Date.now() + 1500;
         nodes = 0;
         try {
           let cand = ms
@@ -724,20 +965,30 @@
               return { m, c, qv: -nm(c, 0, -1e9, 1e9, 1) };
             })
             .sort((a, b) => b.qv - a.qv)
-            .slice(0, 14);
+            .slice(0, 20);
           for (const x of cand) x.vm = -nm(x.c, 2, -1e9, 1e9, 1);
           const top = Math.max(...cand.map((x) => x.vm));
-          for (const x of cand.filter((x) => x.vm >= top - 60)) {
-            const reps = gen(x.c).map((o) => {
+          for (const x of cand.filter((x) => x.vm >= top - 50)) {
+            const reps = legal(x.c).map((o) => {
               const c2 = ap(x.c, o);
               return { o, c2, sh: -nm(c2, 0, -1e9, 1e9, 2), dp: -nm(c2, 2, -1e9, 1e9, 2) };
             });
             if (!reps.length) continue;
-            const bd = Math.max(...reps.map((z) => z.dp)), bs = Math.max(...reps.map((z) => z.sh));
+            const bd = Math.max(...reps.map((z) => z.dp)),
+              bs = Math.max(...reps.map((z) => z.sh));
             const tempt = reps.filter((z) => z.sh >= bs - 50 && bd - z.dp >= 80).sort((a, b) => b.sh - a.sh);
             let sac = Math.max(0, base - x.qv);
             if (sac < 40) sac = 0;
-            full.push({ m: x.m, c: x.c, vm: x.vm, tempt, n: reps.length, sac, bad: reps.filter((z) => bd - z.dp >= 80).length, gap: tempt[0] ? bd - tempt[0].dp : 0 });
+            full.push({
+              m: x.m,
+              c: x.c,
+              vm: x.vm,
+              tempt,
+              n: reps.length,
+              sac,
+              bad: reps.filter((z) => bd - z.dp >= 80).length,
+              gap: tempt[0] ? bd - tempt[0].dp : 0,
+            });
           }
         } catch (e) {}
         if (!full.length) return r;
@@ -753,17 +1004,119 @@
             let bs = -1e9;
             for (const m2 of gen(tp.c2)) {
               const v = -nm(ap(tp.c2, m2), 1, -1e9, 1e9, 1);
-              if (v > bs) { bs = v; ref = m2; }
+              if (v > bs) {
+                bs = v;
+                ref = m2;
+              }
             }
           } catch (e) {}
         }
-        return { ...r, m: pick.m, score: pick.vm, trap: 2, info: { c: pick.c, sac: pick.sac, tempt: pick.tempt.length, bad: pick.bad, n: pick.n, gap: pick.gap, tp, ref } };
+        return {
+          ...r,
+          m: pick.m,
+          score: pick.vm,
+          trap: 2,
+          info: { c: pick.c, sac: pick.sac, tempt: pick.tempt.length, bad: pick.bad, n: pick.n, gap: pick.gap, tp, ref },
+        };
+      }
+      /* ===== TIC-TAC-TOE: selalu memilih langkah berjebakan ===== */
+      function trapT(s, ms, r) {
+        const em = s.b.filter((x) => !x).length,
+          small = em <= 12,
+          big = s.W * s.H > 25,
+          D = small ? em : big ? 2 : 4;
+        dl = Date.now() + (small ? 5000 : 1800);
+        nodes = 0;
+        const vals = [];
+        try {
+          for (const m of order(s, ms).slice(0, small ? 25 : 10)) {
+            const c = ap(s, m);
+            vals.push({ m, c, vm: -nm(c, Math.max(0, D - 1), -1e9, 1e9, 1) });
+          }
+        } catch (e) {}
+        if (!vals.length) return r;
+        const top = Math.max(...vals.map((x) => x.vm));
+        let pool;
+        if (top > 28000) pool = [vals.filter((x) => x.vm == top)[0]];
+        else if (top < -28000) pool = vals;
+        else pool = vals.filter((x) => x.vm >= top - 60);
+        const full = [];
+        try {
+          for (const x of pool) {
+            if (x.c.w) {
+              full.push({ ...x, tempt: [], n: 0, bad: 0, gap: 0, win: 1 });
+              continue;
+            }
+            const reps = genT(x.c, false, 1).map((o) => {
+              const c2 = ap(x.c, o);
+              return {
+                o,
+                c2,
+                sh: -nm(c2, 0, -1e9, 1e9, 2),
+                dp: -nm(c2, Math.max(0, D - 2), -1e9, 1e9, 2),
+              };
+            });
+            if (!reps.length) {
+              full.push({ ...x, tempt: [], n: 0, bad: 0, gap: 0 });
+              continue;
+            }
+            const bd = Math.max(...reps.map((z) => z.dp)),
+              bs = Math.max(...reps.map((z) => z.sh)),
+              badL = reps.filter((z) => bd - z.dp >= 80),
+              tempt = badL.filter((z) => z.sh >= bs - 150).sort((a, b) => b.sh - a.sh);
+            full.push({ ...x, tempt, n: reps.length, bad: badL.length, gap: tempt[0] ? bd - tempt[0].dp : 0 });
+          }
+        } catch (e) {}
+        if (!full.length) return r;
+        const pick =
+          top > 28000
+            ? full[0]
+            : full.sort((a, b) => b.bad - a.bad || b.tempt.length - a.tempt.length || b.vm - a.vm)[0];
+        if (pick.win) return { ...r, m: pick.m, score: pick.vm };
+        const tp = pick.tempt[0];
+        let ref = null;
+        if (tp && !tp.c2.w) {
+          dl = Date.now() + 600;
+          try {
+            let bs = -1e9;
+            for (const m2 of genT(tp.c2, false, 0)) {
+              const v = -nm(ap(tp.c2, m2), Math.min(em, 6), -1e9, 1e9, 1);
+              if (v > bs) {
+                bs = v;
+                ref = m2;
+              }
+            }
+          } catch (e) {}
+        }
+        return {
+          ...r,
+          m: pick.m,
+          score: pick.vm,
+          trap: 2,
+          info: { c: pick.c, sac: 0, tempt: pick.tempt.length, bad: pick.bad, n: pick.n, gap: pick.gap, tp, ref },
+        };
       }
 
       /* ===== PENJELASAN LANGKAH ===== */
       const PN = { K: "Raja", Q: "Menteri", R: "Benteng", B: "Gajah", N: "Kuda", P: "Pion", M: "Pion" };
+      function trapLi(s, i) {
+        return i.tp
+          ? `<li><b>Jebakan:</b> jika lawan membalas <b>${mtxt(i.c, i.tp.o)}</b> (kelihatan menguntungkan), jawab ${i.ref ? "<b>" + mtxt(i.tp.c2, i.ref) + "</b>" : "dengan langkah terbaik"}; ${gapTxt(i.gap)}. ${i.tempt} dari ${i.n} balasan lawan tampak wajar tapi salah.</li>`
+          : `<li><b>Jebakan:</b> belum ada umpan alami di posisi ini. Langkah ini membuat ${i.bad} dari ${i.n} balasan lawan merugikannya (hanya ${i.n - i.bad} yang selamat).</li>`;
+      }
+      function explainT(s, r, L) {
+        const m = r.m,
+          i = r.info,
+          n = ap(s, m);
+        let t = `<li><b>Langkah:</b> ${mtxt(s, m)}${n.w ? " — langsung membentuk garis, menang!" : ""}</li>`;
+        if (!n.w) t += i ? trapLi(s, i) : `<li><b>Alasan:</b> ${L[1]}</li>`;
+        return `<ul class="why">${t}${predLi(s, r)}</ul>`;
+      }
       function explain(s, r, L) {
-        const m = r.m, ch = s.type == "chess", p = s.b[m.f].toUpperCase();
+        if (s.type == "ttt") return explainT(s, r, L);
+        const m = r.m,
+          ch = s.type == "chess",
+          p = s.b[m.f].toUpperCase();
         let t = `<li><b>Langkah:</b> ${ch ? PN[p] : p == "K" ? "Raja" : "Pion"} ${sqn(m.f)} → ${sqn(m.t)}`;
         if (ch && s.b[m.t]) t += `, memakan ${PN[s.b[m.t].toUpperCase()]}`;
         if (!ch && m.cap.length) t += `, memakan ${m.cap.length} bidak`;
@@ -772,22 +1125,22 @@
         const i = r.info;
         if (i) {
           t += `<li><b>Pengorbanan:</b> ${i.sac ? (i.sac / 100).toFixed(1) + " poin" : "nol (tidak ada bidak diberikan)"}</li>`;
-          t += i.tp
-            ? `<li><b>Jebakan:</b> jika lawan membalas <b>${mtxt(i.c, i.tp.o)}</b> (kelihatan menguntungkan), jawab ${i.ref ? "<b>" + mtxt(i.tp.c2, i.ref) + "</b>" : "dengan langkah terbaik"}; lawan rugi sekitar ${(i.gap / 100).toFixed(1)} poin. ${i.tempt} dari ${i.n} balasan lawan tampak wajar tapi salah.</li>`
-            : `<li><b>Jebakan:</b> belum ada umpan alami di posisi ini. Langkah ini membuat ${i.bad} dari ${i.n} balasan lawan merugikannya (hanya ${i.n - i.bad} yang selamat).</li>`;
+          t += trapLi(s, i);
         } else t += `<li><b>Alasan:</b> ${L[1]}</li>`;
-        return `<ul class="why">${t}</ul>`;
+        return `<ul class="why">${t}${predLi(s, r)}</ul>`;
       }
       /* ===== JEBAKAN OTOMATIS: pilih umpan terbaik yang nilainya hampir sama dengan langkah terbaik ===== */
       function pickTrap(s, ms, r) {
         if (Math.abs(r.score) > 28000) return r;
-        const d = Math.max(2, Math.min(r.depth - 1, 6)), base = ev(s);
+        const d = Math.max(2, Math.min(r.depth - 1, 6)),
+          base = ev(s);
         let best = null;
         dl = Date.now() + lvT();
         nodes = 0;
         try {
           for (const m of ms) {
-            const c = ap(s, m), net = -nm(c, 0, -1e9, 1e9, 1) - base;
+            const c = ap(s, m),
+              net = -nm(c, 0, -1e9, 1e9, 1) - base;
             if (net > -80) continue;
             const deep = -nm(c, d, -1e9, 1e9, 1);
             if (deep >= r.score - 50 && (!best || deep > best.deep || (deep == best.deep && net < best.net)))
@@ -798,19 +1151,25 @@
       }
       function suggest(auto) {
         if (busy) return;
-        const ms = legal(G);
+        const ttt = G.type == "ttt",
+          ms = ttt ? genT(G, false, 0) : legal(G);
         if (!ms.length) return;
         busy = 1;
         $("info").textContent = "Mesin berpikir…";
         setTimeout(() => {
-          let r = think(G, ms, lvT());
-          if ($("lv").value == "x") r = expertTrap(G, ms, r);
-          else if ($("atr").checked) r = pickTrap(G, ms, r);
-          const L = r.trap == 2
-            ? ["Jebakan Expert", "Langkah aman dengan pengorbanan minimal yang menyiapkan jebakan.", "#c0392b"]
-            : r.trap
-            ? ["Jebakan otomatis", "Umpan materi yang, menurut hitungan mesin, merugikan lawan jika dimakan.", "#d35400"]
-            : label(G, r);
+          const base = think(G, ms, lvT());
+          let r = base;
+          if (ttt) r = trapT(G, ms, base);
+          else if ($("lv").value == "x") r = expertTrap(G, ms, base);
+          else if ($("atr").checked) r = pickTrap(G, ms, base);
+          r = guard(G, base, r);
+          const L = r.guarded
+            ? ["Dijaga dari blunder", "Umpan dibatalkan karena balasan lawan berisiko; dipakai langkah terbaik.", "#2980b9"]
+            : r.trap == 2
+              ? ["Jebakan Expert", "Langkah aman dengan pengorbanan minimal yang menyiapkan jebakan.", "#c0392b"]
+              : r.trap
+                ? ["Jebakan otomatis", "Umpan materi yang, menurut hitungan mesin, merugikan lawan jika dimakan.", "#d35400"]
+                : label(G, r);
           hint = [r.m.f, r.m.t];
           hintM = r.m;
           $("info").innerHTML =
@@ -832,6 +1191,13 @@
         after();
       }
       function over() {
+        if (G.type == "ttt") {
+          if (G.last) {
+            const i = G.last[1];
+            if (G.b[i] && winAt(G.b, G.W, G.H, G.R.k, i, G.b[i])) return (G.b[i] == "X" ? "X" : "O") + " menang!";
+          }
+          return G.b.includes(null) ? "" : "Seri";
+        }
         const ms = legal(G);
         if (G.R.kc && G.type == "chess" && !G.b.includes(G.side == 1 ? "K" : "k"))
           return "Raja ditangkap – " + (G.side == 1 ? "Hitam" : "Putih") + " menang";
@@ -844,25 +1210,29 @@
       function after() {
         const o = over();
         $("st").textContent =
-          o ||
-          "Giliran: " +
-            (G.side == 1 ? "Putih" : "Hitam") +
-            (G.type == "chess" && inCheck(G) ? " – SKAK!" : "");
+          o || "Giliran: " + sn(G.side) + (G.type == "chess" && inCheck(G) ? " – SKAK!" : "");
         if (!o && +$("ai").value && G.side == +$("ai").value) setTimeout(() => suggest(1), 150);
       }
       /* ===== UI ===== */
       function draw() {
         const { W, H, b } = G,
           B = $("bd"),
-          s = Math.max(26, Math.min(64, Math.floor((Math.min(DOC.defaultView.innerWidth, 720) - 50) / W)));
+          win = DOC.defaultView,
+          pip = DOC !== document,
+          ttt = G.type == "ttt";
+        let s = Math.floor((Math.min(win.innerWidth, 720) - (pip ? 40 : 50)) / W);
+        if (pip) s = Math.min(s, Math.floor((win.innerHeight - 170) / H));
+        s = Math.max(22, Math.min(ttt && W <= 5 ? 96 : 64, s));
+        B.className = G.type;
         B.style.setProperty("--s", s + "px");
         B.style.gridTemplateColumns = `repeat(${W},var(--s))`;
         const tg =
-          sel == null
-            ? []
-            : legal(G)
-                .filter((m) => m.f == sel)
-                .map((m) => m.t);
+            sel == null
+              ? []
+              : legal(G)
+                  .filter((m) => m.f == sel)
+                  .map((m) => m.t),
+          wl = winLine(G);
         let h = "";
         for (let k = 0; k < W * H; k++) {
           const r = G.flip ? H - 1 - ((k / W) | 0) : (k / W) | 0,
@@ -871,30 +1241,47 @@
             p = b[i];
           let cl =
             "sq " +
-            ((r + c) % 2 ? "d" : "l") +
+            (ttt ? "t" : (r + c) % 2 ? "d" : "l") +
             (sel == i ? " sel" : "") +
             (tg.includes(i) ? " tg" : "") +
             (G.last && G.last.includes(i) ? " lm" : "") +
+            (wl.includes(i) ? " wn" : "") +
             (hint && hint.includes(i) ? " h" : "");
           let ct = "";
           if (p) {
-            const w = own(p, 1) ? "pw" : "pb";
-            ct =
-              G.type == "chess"
-                ? `<span class="${w}">${GL[p.toUpperCase()]}</span>`
-                : `<i class="ck ${w}">${p.toUpperCase() == "K" ? "♛" : ""}</i>`;
+            const w = own(p, 1) ? "pw" : "pb",
+              u = p.toUpperCase();
+            ct = ttt
+              ? `<span class="${u == "X" ? "tx" : "to"}">${u == "X" ? "X" : "O"}</span>`
+              : G.type == "chess"
+                ? `<span class="${w}">${u == "P" ? PAWN : GL[u]}</span>`
+                : `<i class="ck ${w}">${u == "K" ? "♛" + T : ""}</i>`;
           }
           h += `<div class="${cl}" data-i="${i}">${ct}</div>`;
         }
         B.innerHTML = h;
       }
       /* ===== EVENT ===== */
+      function labels() {
+        const t = $("ty").value == "ttt",
+          f = $("first").options,
+          a = $("ai").options;
+        f[0].text = t ? "X" : "Putih";
+        f[1].text = t ? "O" : "Hitam";
+        a[1].text = t ? "AI main O" : "AI main Hitam";
+        a[2].text = t ? "AI main X" : "AI main Putih";
+      }
       $("bd").onclick = (e) => {
         const d = e.target.closest(".sq");
         if (!d || busy || over()) return;
         if (+$("ai").value && G.side == +$("ai").value) return;
         const i = +d.dataset.i,
           ms = legal(G);
+        if (G.type == "ttt") {
+          const m = ms.find((m) => m.t == i);
+          if (m) play(m);
+          return;
+        }
         if (sel != null) {
           const m = ms.find((m) => m.f == sel && m.t == i);
           if (m) return play(m);
@@ -931,12 +1318,20 @@
         }
         sel = hint = hintM = null;
         draw();
-        $("st").textContent = "Giliran: " + (G.side == 1 ? "Putih" : "Hitam");
+        $("st").textContent = "Giliran: " + sn(G.side);
       };
       $("ty").onchange = () => {
-        const c = $("ty").value == "chess";
-        $("rc").classList.toggle("hid", !c);
-        $("rk").classList.toggle("hid", c);
+        const t = $("ty").value,
+          prev = G.type;
+        if (t == "ttt") {
+          $("W").value = $("H").value = 3;
+          $("KN").value = 3;
+          kt = 0;
+        } else if (prev == "ttt") $("W").value = $("H").value = 8;
+        $("rc").classList.toggle("hid", t != "chess");
+        $("rk").classList.toggle("hid", t != "ck");
+        $("rt").classList.toggle("hid", t != "ttt");
+        labels();
         mk();
       };
       ["dbl", "kc", "force", "back", "fly"].forEach(
@@ -950,7 +1345,17 @@
           }),
       );
       $("dir").onchange = mk;
-      $("W").onchange = $("H").onchange = mk;
+      $("W").onchange = $("H").onchange = () => {
+        if ($("ty").value == "ttt" && !kt) {
+          const m = Math.max(+$("W").value || 3, +$("H").value || 3);
+          $("KN").value = m <= 3 ? 3 : m <= 5 ? 4 : 5;
+        }
+        mk();
+      };
+      $("KN").onchange = () => {
+        kt = 1;
+        mk();
+      };
       /* ===== CARI JEBAKAN MASSAL (100-500) ===== */
       let scanning = 0;
       const MAXD = 8;
@@ -998,9 +1403,9 @@
           while (scanning && q.length && found.length < want && Date.now() - t0 < 60) {
             const { s, line, tx } = q.shift(),
               key = s.b.join("") + s.side;
-            if (seen.has(key)) continue;
+            if (seen.has(key) || s.w) continue;
             seen.add(key);
-            const ms = legal(s);
+            const ms = s.type == "ttt" ? genT(s, false, 1) : legal(s);
             if (!ms.length || line.length >= MAXD) continue;
             dl = Date.now() + 1e7;
             nodes = 0;
@@ -1035,16 +1440,22 @@
       }
       $("bj").onclick = scanTraps;
 
-      /* ===== JENDELA MELAYANG (Document Picture-in-Picture) ===== */
+      /* ===== JENDELA MELAYANG (Document Picture-in-Picture) =====
+         Seluruh aplikasi (bar aksi + papan + panel) dipindah, tata letak jadi satu kolom,
+         ukuran papan menyesuaikan lebar DAN tinggi jendela. */
       async function floatWin() {
         if (!window.documentPictureInPicture) {
           alert("Jendela melayang butuh Chrome/Edge 116+ di desktop.");
           return;
         }
-        const root = document.querySelector(".w");
+        if (DOC !== document) {
+          DOC.defaultView.close();
+          return;
+        }
+        const root = document.getElementById("app");
         const pw = await documentPictureInPicture.requestWindow({
-          width: Math.min(innerWidth, 620),
-          height: Math.min(innerHeight, 760),
+          width: 480,
+          height: Math.min(760, (screen.availHeight || 800) - 80),
         });
         for (const ss of document.styleSheets) {
           try {
@@ -1053,21 +1464,38 @@
             pw.document.head.append(st);
           } catch (e) {}
         }
+        const meta = pw.document.createElement("meta");
+        meta.name = "viewport";
+        meta.content = "width=device-width,initial-scale=1";
+        pw.document.head.append(meta);
+        const th = document.documentElement.dataset.theme;
+        if (th) pw.document.documentElement.dataset.theme = th;
+        pw.document.body.className = "pip";
+        const dets = [...root.querySelectorAll("details.grp")],
+          was = dets.map((d) => d.open);
+        dets.forEach((d) => (d.open = false));
         pw.document.body.append(root);
         DOC = pw.document;
         draw();
-        pw.addEventListener("resize", () => draw());
+        const rs = () => draw();
+        pw.addEventListener("resize", rs);
         pw.addEventListener("pagehide", () => {
-          document.body.append(root);
+          document.body.prepend(root);
           DOC = document;
+          dets.forEach((d, i) => (d.open = was[i]));
           draw();
         });
       }
       $("bwin").onclick = floatWin;
 
       /* ===== VERSI & NOTIFIKASI UPDATE ===== */
-      const APP_VERSION = "1.6.1";
-      const CHANGELOG = ["Level Expert (cepat, selalu jebakan, korban minim)", "Penjelasan tiap langkah", "Arah jalan dam: diagonal / vertikal / semua", "Tampilan baru"];
+      const APP_VERSION = "1.7.0";
+      const CHANGELOG = [
+        "Perbaikan pion putih tampil hitam",
+        "Prediksi balasan lawan + penjaga blunder",
+        "Tic-Tac-Toe ukuran bebas (selalu jebakan)",
+        "Jendela melayang pas & lengkap",
+      ];
       const notified = new Set();
       $("ver").textContent = "Versi " + APP_VERSION + " · Baru: " + CHANGELOG.join(" · ");
       function showUpdate(v) {
@@ -1099,7 +1527,7 @@
       setInterval(checkUpdate, 60000);
       addEventListener("focus", checkUpdate);
       checkUpdate();
-      addEventListener("resize", () => G && draw());
+      addEventListener("resize", () => G && DOC === document && draw());
       mk();
     </script>
   </body>
