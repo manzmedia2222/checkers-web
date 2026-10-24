@@ -301,7 +301,7 @@
               </select></div>
             <div class="fld"><span>Level</span>
               <select id="lv">
-                <option value="x">⚡ Expert (cepat, selalu jebakan, korban minim)</option>
+                <option value="x">⚡ Expert (jebakan berlapis, korban hanya bila ada jawaban tak terduga)</option>
                 <option value="400">Cepat</option><option value="2000" selected>Kuat</option>
                 <option value="6000">Pro (6 dtk)</option>
               </select></div>
@@ -313,6 +313,7 @@
             <div id="rc">
               <label class="chk"><input type="checkbox" id="dbl" checked /> Pion boleh langkah ganda</label>
               <label class="chk"><input type="checkbox" id="kc" /> Menang dengan menangkap Raja (tanpa aturan skak)</label>
+              <label class="chk"><input type="checkbox" id="cas" checked /> Rokade pendek &amp; panjang (klik Raja, lalu kotak 2 langkah)</label>
             </div>
             <div id="rk" class="hid">
               <div class="fld"><span>Arah jalan</span>
@@ -348,8 +349,9 @@
           <div class="sm" id="ver" style="margin-top: 12px"></div>
           <div class="sm">
             Klik bidak lalu kotak tujuan (Tic-Tac-Toe: klik kotak kosong). Mesin: negamax + alpha-beta, iterative deepening,
-            quiescence, plus analisis balasan lawan untuk mencegah blunder. Label (Brilliant, Gambit, Jebakan) ditebak dari
-            hasil pencarian. Catatan: belum ada rokade &amp; en passant, promosi selalu jadi Menteri.
+            quiescence, tabel transposisi, null-move, LMR, plus analisis balasan lawan untuk mencegah blunder. Level Expert membaca
+            situasi (fase, materi, ancaman) lalu hanya berkorban bila setiap cara lawan memakan umpan terbukti kalah oleh
+            jawaban tenang yang tak terduga. Catatan: rokade tersedia; belum ada en passant, promosi selalu jadi Menteri.
           </div>
         </div>
       </div>
@@ -451,6 +453,7 @@
           H,
           R: {
             dbl: $("dbl").checked,
+            cas: $("cas").checked,
             kc: $("kc").checked,
             force: $("force").checked,
             back: $("back").checked,
@@ -460,6 +463,7 @@
           },
           b: setup(t, W, H, $("dir").value),
           side: +$("first").value,
+          cr: t == "chess" ? 15 : 0,
           hist: [],
           last: null,
           flip: G ? G.flip : 0,
@@ -600,6 +604,95 @@
       function gen(s, co) {
         return s.type == "chess" ? genC(s, co) : s.type == "ttt" ? genT(s, co, 0) : genK(s, co);
       }
+            /* ===== SERANGAN: skak, rokade, deteksi ancaman =====
+         mn=0 -> true/false (cepat); mn=1 -> nilai penyerang termurah (0 = tidak diserang) */
+      function attGen(b, W, H, idx, by, mn) {
+        const r = (idx / W) | 0,
+          c = idx % W,
+          w = by == 1;
+        let best = 0;
+        const pr = w ? r + 1 : r - 1;
+        if (pr >= 0 && pr < H) {
+          const pc = w ? "P" : "p";
+          if ((c > 0 && b[pr * W + c - 1] == pc) || (c < W - 1 && b[pr * W + c + 1] == pc)) {
+            if (!mn) return 1;
+            best = 100;
+          }
+        }
+        const Nn = w ? "N" : "n";
+        for (let k = 0; k < 8; k++) {
+          const rr = r + ND[k][0],
+            cc = c + ND[k][1];
+          if (rr < 0 || cc < 0 || rr >= H || cc >= W) continue;
+          if (b[rr * W + cc] == Nn) {
+            if (!mn) return 1;
+            if (!best || 320 < best) best = 320;
+          }
+        }
+        const Kk = w ? "K" : "k",
+          Qq = w ? "Q" : "q",
+          Rr = w ? "R" : "r",
+          Bb = w ? "B" : "b";
+        for (let k = 0; k < 8; k++) {
+          const dr = KD[k][0],
+            dc = KD[k][1];
+          let rr = r + dr,
+            cc = c + dc,
+            first = 1;
+          while (rr >= 0 && cc >= 0 && rr < H && cc < W) {
+            const x = b[rr * W + cc];
+            if (x) {
+              let v = 0;
+              if (x == Qq) v = 900;
+              else if (k < 4 ? x == Rr : x == Bb) v = k < 4 ? 500 : 330;
+              else if (first && x == Kk) v = 20000;
+              if (v) {
+                if (!mn) return 1;
+                if (!best || v < best) best = v;
+              }
+              break;
+            }
+            first = 0;
+            rr += dr;
+            cc += dc;
+          }
+        }
+        return best;
+      }
+      const attacked = (b, W, H, i, by) => attGen(b, W, H, i, by, 0) == 1;
+      /* ===== ROKADE (pendek & panjang) ===== */
+      function castleMoves(s, i, out) {
+        const { b, W, H, side, R } = s,
+          home = side == 1 ? H - 1 : 0,
+          kc = W >> 1;
+        if (i != home * W + kc) return;
+        for (const [bit, dir] of [
+          [side == 1 ? 1 : 4, 1],
+          [side == 1 ? 2 : 8, -1],
+        ]) {
+          if (!(s.cr & bit)) continue;
+          const rc = dir == 1 ? W - 1 : 0,
+            kt = kc + 2 * dir,
+            rt = kc + dir;
+          if (kt < 0 || kt >= W) continue;
+          const rk = b[home * W + rc];
+          if (!rk || rk.toUpperCase() != "R" || !own(rk, side)) continue;
+          let ok = true;
+          for (let x = kc + dir; x != rc; x += dir)
+            if (b[home * W + x]) {
+              ok = false;
+              break;
+            }
+          if (!ok) continue;
+          if (!R.kc)
+            for (const x of [kc, kc + dir, kc + 2 * dir])
+              if (attacked(b, W, H, home * W + x, -side)) {
+                ok = false;
+                break;
+              }
+          if (ok) out.push({ f: i, t: home * W + kt, cs: { f: home * W + rc, t: home * W + rt } });
+        }
+      }
       function genC(s, co) {
         const { b, W, H, side, R } = s,
           out = [];
@@ -652,11 +745,12 @@
                 }
               } else mv(rr, cc);
             }
+            if (t == "K" && !co && R.cas && s.cr) castleMoves(s, i, out);
           }
         }
         return out;
       }
-      function genK(s, co) {
+function genK(s, co) {
         const { b, W, H, side, R } = s,
           caps = [],
           q = [],
@@ -719,7 +813,7 @@
         return co ? caps : R.force && caps.length ? caps : caps.concat(q);
       }
       /* ===== EKSEKUSI LANGKAH & EVALUASI ===== */
-      function ap(s, m) {
+            function ap(s, m) {
         const b = s.b.slice();
         if (s.type == "ttt") {
           const mkr = s.side == 1 ? "X" : "o";
@@ -731,11 +825,130 @@
         const p = b[m.f];
         b[m.f] = null;
         if (m.cap) m.cap.forEach((j) => (b[j] = null));
+        if (m.cs) {
+          b[m.cs.t] = b[m.cs.f];
+          b[m.cs.f] = null;
+        }
         b[m.t] = m.pr ? (s.type == "chess" ? (s.side == 1 ? "Q" : "q") : s.side == 1 ? "K" : "k") : p;
-        return { type: s.type, W: s.W, H: s.H, R: s.R, b, side: -s.side };
+        const n = { type: s.type, W: s.W, H: s.H, R: s.R, b, side: -s.side };
+        if (s.type == "chess") {
+          let cr = s.cr || 0;
+          if (cr) {
+            if (p == "K") cr &= ~3;
+            else if (p == "k") cr &= ~12;
+            const W = s.W,
+              H = s.H,
+              clr = (i) => {
+                if (i == (H - 1) * W + W - 1) cr &= ~1;
+                else if (i == (H - 1) * W) cr &= ~2;
+                else if (i == W - 1) cr &= ~4;
+                else if (i == 0) cr &= ~8;
+              };
+            clr(m.f);
+            clr(m.t);
+          }
+          n.cr = cr;
+        }
+        return n;
+      }
+      /* ===== EVALUASI ===== */
+      const EVWM = new Int16Array(16),
+        EVBM = new Int16Array(16),
+        EVWN = new Int8Array(16),
+        EVBN = new Int8Array(16);
+      function evC(s) {
+        const { b, W, H } = s,
+          n = b.length;
+        for (let c = 0; c < W; c++) {
+          EVWM[c] = -1;
+          EVBM[c] = 99;
+          EVWN[c] = 0;
+          EVBN[c] = 0;
+        }
+        let mat = 0,
+          nP = 0,
+          nQ = 0,
+          nR = 0,
+          nM = 0,
+          bw = 0,
+          bb = 0;
+        for (let i = 0; i < n; i++) {
+          const p = b[i];
+          if (!p) continue;
+          const u = p.toUpperCase(),
+            w = p == u,
+            c = i % W,
+            r = (i / W) | 0;
+          if (u == "P") {
+            nP++;
+            if (w) {
+              EVWN[c]++;
+              if (r > EVWM[c]) EVWM[c] = r;
+            } else {
+              EVBN[c]++;
+              if (r < EVBM[c]) EVBM[c] = r;
+            }
+          } else if (u != "K") {
+            mat += V[u];
+            if (u == "Q") nQ++;
+            else if (u == "R") nR++;
+            else {
+              nM++;
+              if (u == "B") w ? bw++ : bb++;
+            }
+          }
+        }
+        if (!nP && !nQ && !nR && nM <= 1) return 0; /* materi tak cukup untuk mat */
+        const eg = mat < 2600,
+          cx = (W - 1) / 2,
+          cy = (H - 1) / 2;
+        let t = 0;
+        for (let i = 0; i < n; i++) {
+          const p = b[i];
+          if (!p) continue;
+          const u = p.toUpperCase(),
+            w = p == u,
+            r = (i / W) | 0,
+            c = i % W,
+            adv = w ? H - 1 - r : r,
+            cen = -(Math.abs(c - cx) + Math.abs(r - cy));
+          let v = V[u];
+          if (u == "P") {
+            v += adv * 4 + cen * 2;
+            let pass = true;
+            for (let cc = c - 1; cc <= c + 1; cc++) {
+              if (cc < 0 || cc >= W) continue;
+              if (w ? EVBM[cc] < r : EVWM[cc] > r) {
+                pass = false;
+                break;
+              }
+            }
+            if (pass) v += adv * adv * 2;
+            if ((w ? EVWN[c] : EVBN[c]) > 1) v -= 12;
+          } else if (u == "N" || u == "B") v += cen * 5;
+          else if (u == "R") {
+            if (!(w ? EVWN[c] : EVBN[c])) v += (w ? EVBN[c] : EVWN[c]) ? 12 : 24;
+          } else if (u == "Q") v += cen;
+          else if (eg) v += cen * 10;
+          else {
+            v -= cen * 7; /* Raja menjauh dari tengah di fase ramai */
+            const fr = w ? r - 1 : r + 1;
+            if (fr >= 0 && fr < H)
+              for (let cc = c - 1; cc <= c + 1; cc++) {
+                if (cc < 0 || cc >= W) continue;
+                const q = b[fr * W + cc];
+                if (q && q.toUpperCase() == "P" && q == q.toUpperCase() == w) v += 12;
+              }
+            if (!(w ? EVWN[c] : EVBN[c])) v -= 15;
+          }
+          t += w ? v : -v;
+        }
+        t += (bw > 1 ? 30 : 0) - (bb > 1 ? 30 : 0);
+        return Math.round(t * s.side);
       }
       function ev(s) {
         if (s.type == "ttt") return evT(s);
+        if (s.type == "chess") return evC(s);
         const { b, W, H } = s;
         let t = 0;
         for (let i = 0; i < b.length; i++) {
@@ -747,57 +960,160 @@
             c = i % W,
             adv = w ? H - 1 - r : r,
             cen = -(Math.abs(c - (W - 1) / 2) + Math.abs(r - (H - 1) / 2));
-          let v;
-          if (s.type == "chess") {
-            v = V[u];
-            if (u == "P") v += adv * 4 + cen * 2;
-            else if (u == "N" || u == "B") v += cen * 5;
-            else if (u == "Q") v += cen;
-          } else {
-            v = C[u];
-            if (u == "M") v += adv * 5 + cen * 2;
-            else v += cen * 2;
-          }
+          let v = C[u];
+          if (u == "M") v += adv * 5 + cen * 2;
+          else v += cen * 2;
           t += w ? v : -v;
         }
-        return t * s.side;
+        return Math.round(t * s.side);
       }
-      function order(s, ms) {
+      let TT = new Map(),
+        KIL = [],
+        H1 = 0,
+        H2 = 0;
+      function hk(s) {
+        let a = s.side > 0 ? 0x2545f491 : 0x1b873593,
+          c = (s.cr || 0) * 977 + 12345;
+        const b = s.b;
+        for (let i = 0; i < b.length; i++) {
+          const p = b[i];
+          if (p) {
+            const x = (i << 7) | p.charCodeAt(0);
+            a = Math.imul(a ^ x, 0x85ebca6b);
+            a ^= a >>> 15;
+            c = Math.imul(c + x, 0xc2b2ae35);
+            c ^= c >>> 11;
+          }
+        }
+        H1 = a;
+        H2 = c;
+      }
+      function hasP(s) {
+        const b = s.b,
+          w = s.side == 1;
+        for (let i = 0; i < b.length; i++) {
+          const p = b[i];
+          if (p && (p == p.toUpperCase()) == w) {
+            const u = p.toUpperCase();
+            if (u == "N" || u == "B" || u == "R" || u == "Q") return true;
+          }
+        }
+        return false;
+      }
+      function order(s, ms, ttm, ply) {
+        const kl = ply != null ? KIL[ply] : null,
+          bonus = (m) =>
+            ttm && m.f == ttm.f && m.t == ttm.t
+              ? 1e7
+              : kl && ((kl[0] && kl[0].f == m.f && kl[0].t == m.t) || (kl[1] && kl[1].f == m.f && kl[1].t == m.t))
+                ? 5000
+                : 0;
         const sc =
           s.type == "ttt"
             ? (m) => -(Math.abs((m.t % s.W) - (s.W - 1) / 2) + Math.abs(((m.t / s.W) | 0) - (s.H - 1) / 2))
             : (m) =>
-                s.type == "chess"
+                bonus(m) +
+                (s.type == "chess"
                   ? (s.b[m.t] ? V[s.b[m.t].toUpperCase()] * 10 - V[s.b[m.f].toUpperCase()] : 0) + (m.pr ? 800 : 0)
-                  : m.cap.length * 1000 + (m.pr ? 50 : 0);
+                  : m.cap.length * 1000 + (m.pr ? 50 : 0));
         return ms
           .map((m) => [sc(m), m])
           .sort((a, b) => b[0] - a[0])
           .map((x) => x[1]);
       }
-      /* ===== MESIN PENCARI (negamax + alpha-beta) ===== */
-      function nm(s, d, a, B, ply) {
+      /* ===== MESIN PENCARI: negamax + alpha-beta + PVS + tabel transposisi + killer
+         + null-move + LMR + perpanjangan skak + deteksi mat/stalemate yang benar ===== */
+      function nm(s, d, a, B, ply, nn) {
         if (s.w) return -(30000 - ply); /* pemain yang jalan sudah kalah (lawan membentuk garis) */
         if ((++nodes & 511) == 0 && Date.now() > dl) throw 0;
+        const ch = s.type == "chess",
+          lg = ch && !s.R.kc,
+          W = s.W,
+          H = s.H;
+        let kp = -1,
+          inchk = false;
+        if (lg) {
+          kp = s.b.indexOf(s.side == 1 ? "K" : "k");
+          if (kp >= 0) inchk = attacked(s.b, W, H, kp, -s.side);
+          if (inchk && d == 0 && ply < 30) d = 1;
+        }
         const q = d <= 0;
-        let best = -1e9;
+        let ttm = null,
+          k1 = 0,
+          k2 = 0;
+        const a0 = a;
+        if (!q && s.type != "ttt") {
+          hk(s);
+          k1 = H1;
+          k2 = H2;
+          const e = TT.get(k1);
+          if (e && e.h == k2) {
+            ttm = e.m;
+            if (e.d >= d) {
+              if (e.f == 0) return e.v;
+              if (e.f == 1 && e.v >= B) return e.v;
+              if (e.f == 2 && e.v <= a) return e.v;
+            }
+          }
+        }
+        if (!q && !nn && ch && d >= 3 && B - a == 1 && !inchk && B < 28000 && ev(s) >= B && hasP(s)) {
+          const n0 = { type: s.type, W, H, R: s.R, b: s.b, side: -s.side, cr: s.cr };
+          if (-nm(n0, d - 3, -B, -B + 1, ply + 1, true) >= B) return B;
+        }
+        let best = -1e9,
+          bm = null,
+          cnt = 0,
+          mi = 0;
         if (q) {
           best = ev(s);
           if (best >= B || d < -6) return best;
           if (best > a) a = best;
         }
-        const ms = order(s, gen(s, q));
-        if (!ms.length && !q) return s.type == "chess" || s.type == "ttt" ? 0 : -29000 + ply;
+        let ms = gen(s, q);
+        if (ms.length > 1) ms = order(s, ms, ttm, ply);
         for (const m of ms) {
-          if (s.type == "chess" && s.b[m.t] && s.b[m.t].toUpperCase() == "K") return 30000 - ply;
-          const sc = -nm(ap(s, m), d - 1, -B, -a, ply + 1);
+          const vic = s.b[m.t];
+          if (ch && s.R.kc && vic && vic.toUpperCase() == "K") return 30000 - ply;
+          if (q && ch && vic && !m.pr && best + V[vic.toUpperCase()] + 200 < a) continue;
+          const c = ap(s, m);
+          if (lg && kp >= 0 && attacked(c.b, W, H, m.f == kp ? m.t : kp, c.side)) continue;
+          cnt++;
+          let sc;
+          if (q || mi == 0) sc = -nm(c, d - 1, -B, -a, ply + 1);
+          else {
+            const r = ch && d >= 3 && mi >= 4 && !vic && !m.pr && !inchk ? 1 : 0;
+            sc = -nm(c, d - 1 - r, -a - 1, -a, ply + 1);
+            if (r && sc > a) sc = -nm(c, d - 1, -a - 1, -a, ply + 1);
+            if (sc > a && sc < B) sc = -nm(c, d - 1, -B, -a, ply + 1);
+          }
+          mi++;
           if (sc > best) {
             best = sc;
+            bm = m;
             if (sc > a) {
               a = sc;
-              if (a >= B) break;
+              if (a >= B) {
+                if (!vic && !m.pr && ply < 64) {
+                  const k = KIL[ply];
+                  if (!k) KIL[ply] = [m, null];
+                  else if (!(k[0] && k[0].f == m.f && k[0].t == m.t)) {
+                    k[1] = k[0];
+                    k[0] = m;
+                  }
+                }
+                break;
+              }
             }
           }
+        }
+        if (!q && cnt == 0) {
+          if (lg) return inchk ? -(30000 - ply) : 0;
+          if (s.type == "ck") return -29000 + ply;
+          return 0;
+        }
+        if (!q && s.type != "ttt" && best > -28000 && best < 28000) {
+          if (TT.size > 700000) TT.clear();
+          TT.set(k1, { h: k2, d, v: best, f: best <= a0 ? 2 : best >= B ? 1 : 0, m: bm });
         }
         return best;
       }
@@ -805,17 +1121,18 @@
         if (s.type == "ttt") return genT(s, false, 2);
         const ms = gen(s);
         if (s.type != "chess" || s.R.kc) return ms;
-        const k = s.side == 1 ? "K" : "k";
+        const kp = s.b.indexOf(s.side == 1 ? "K" : "k");
+        if (kp < 0) return ms;
         return ms.filter((m) => {
           const n = ap(s, m);
-          return !gen(n).some((o) => n.b[o.t] == k);
+          return !attacked(n.b, s.W, s.H, m.f == kp ? m.t : kp, n.side);
         });
       }
       function inCheck(s) {
-        const k = s.side == 1 ? "K" : "k";
-        return gen({ ...s, side: -s.side }).some((o) => s.b[o.t] == k);
+        const kp = s.b.indexOf(s.side == 1 ? "K" : "k");
+        return kp >= 0 && attacked(s.b, s.W, s.H, kp, -s.side);
       }
-      function think(s, ms, time) {
+function think(s, ms, time) {
         dl = Date.now() + time;
         nodes = 0;
         let res = null;
@@ -846,6 +1163,7 @@
       const sqn = (i) => String.fromCharCode(97 + (i % G.W)) + (G.H - ((i / G.W) | 0));
       function mtxt(s, m) {
         if (s.type == "ttt") return (s.side == 1 ? "X" : "O") + " " + sqn(m.t);
+        if (m.cs) return m.t > m.f ? "O-O" : "O-O-O";
         const p = s.b[m.f].toUpperCase();
         return (
           (s.type == "chess" && p != "P" ? p : "") +
@@ -902,7 +1220,7 @@
       }
 
       /* ===== ANALISIS LAWAN: prediksi balasan + penjaga blunder ===== */
-      const lvT = () => ($("lv").value == "x" ? 350 : +$("lv").value);
+      const lvT = () => ($("lv").value == "x" ? 450 : +$("lv").value);
       function predict(s, m) {
         const c = ap(s, m),
           out = [];
@@ -951,75 +1269,284 @@
         return `<li><b>Prediksi lawan:</b> ${top}. <span class="sm">angka = nilai bagi kita</span></li><li><b>Cek blunder:</b> ${v}</li>`;
       }
 
-      /* ===== LEVEL EXPERT: jebakan selalu, pengorbanan minimal, berpikir cepat ===== */
+            /* ===== BACA SITUASI (catur): fase, materi, ancaman, peluang, rokade, gaya main ===== */
+      function readSit(s) {
+        if (s.type != "chess") return null;
+        const { b, W, H, side } = s,
+          me = side == 1;
+        let mine = 0,
+          theirs = 0,
+          mat = 0;
+        const pcs = [];
+        for (let i = 0; i < b.length; i++) {
+          const p = b[i];
+          if (!p) continue;
+          const u = p.toUpperCase(),
+            mn = (p == u) == me;
+          if (u == "K") continue;
+          if (mn) mine += V[u];
+          else theirs += V[u];
+          if (u != "P") mat += V[u];
+          pcs.push({ i, u, mn });
+        }
+        const diff = mine - theirs,
+          nply = G && G.hist ? G.hist.length : 0,
+          phase = mat < 2600 ? "endgame" : nply < 20 && mat >= 5000 ? "pembukaan" : "middlegame",
+          my = [],
+          op = [];
+        for (const z of pcs) {
+          const att = attGen(b, W, H, z.i, z.mn ? -side : side, 1);
+          if (!att) continue;
+          const def = attacked(b, W, H, z.i, z.mn ? side : -side);
+          if (!def || att < V[z.u]) (z.mn ? my : op).push({ ...z, why: !def ? "tak terlindungi" : "bisa ditukar rugi" });
+        }
+        const top = (a) =>
+          a
+            .sort((x, y) => V[y.u] - V[x.u])
+            .slice(0, 2)
+            .map((z) => `${PN[z.u]} ${sqn(z.i)} ${z.why}`)
+            .join(", ");
+        let t = `Fase <b>${phase}</b> · materi ${diff == 0 ? "seimbang" : (diff > 0 ? "unggul " : "tertinggal ") + Math.abs(diff / 100).toFixed(1)}`;
+        if (inCheck(s)) t += " · <b>Raja kita sedang skak</b>";
+        if (my.length) t += " · ⚠ ancaman: " + top(my);
+        if (op.length) t += " · peluang: " + top(op);
+        if (gen(s).some((m) => m.cs)) t += " · rokade tersedia";
+        t +=
+          diff >= 400
+            ? " → <b>mode aman</b> (tidak berkorban, simpan keunggulan)"
+            : diff <= -300
+              ? " → <b>mode agresif</b> (cari jebakan tajam)"
+              : " → <b>mode seimbang</b> (jebakan, korban hanya bila ada jawaban tak terduga)";
+        return { phase, diff, text: t };
+      }
+
+      /* ===== LEVEL EXPERT v2 =====
+         1) cari semua langkah yang sehat (nilai dalam tidak jauh dari yang terbaik);
+         2) untuk tiap langkah, cari balasan lawan yang TAMPAK menguntungkan (umpan: dimakan/nilai dangkal tinggi)
+            tetapi pencarian dalam membuktikan balasan itu salah;
+         3) untuk tiap umpan, cari jawaban kita; jawaban dianggap "tak terduga" bila bukan langkah yang dipilih
+            pencarian dangkal, bukan makan/promosi, dan jauh lebih baik dari langkah yang tampak jelas;
+         4) pengorbanan bidak hanya dipilih bila SEMUA cara lawan memakannya terbukti salah dan ada jawaban tak terduga. */
+      const clampV = (v) => Math.max(-3000, Math.min(3000, v)),
+        sameM = (x, y) => x.f == y.f && x.t == y.t,
+        isCap = (s, m) => (s.type == "ck" ? !!(m.cap && m.cap.length) : !!(s.b[m.t] || m.pr));
+      function searchTo(c, D) {
+        let ms = legal(c);
+        if (!ms.length) return null;
+        ms = order(c, ms);
+        let res = null;
+        for (let d = 1; d <= D; d++) {
+          let a = -1e9,
+            cur = null;
+          for (const m of ms) {
+            const sc = -nm(ap(c, m), d - 1, -1e9, -a, 1);
+            if (sc > a) {
+              a = sc;
+              cur = m;
+            }
+          }
+          res = { m: cur, score: a, depth: d };
+          ms = [cur].concat(ms.filter((x) => x !== cur));
+          if (Math.abs(a) > 28000 || ms.length == 1) break;
+        }
+        return res;
+      }
+      function refute(c2, Dr) {
+        const ms2 = legal(c2);
+        if (!ms2.length) return null;
+        const sh = ms2
+          .map((m) => {
+            const c3 = ap(c2, m);
+            return { m, c3, q: -nm(c3, 0, -1e9, 1e9, 3) };
+          })
+          .sort((x, y) => y.q - x.q);
+        const best = searchTo(c2, Dr);
+        if (!best) return null;
+        const obv = sh[0],
+          mine = sh.find((z) => sameM(z.m, best.m)),
+          c3 = mine ? mine.c3 : ap(c2, best.m),
+          diffMove = !sameM(obv.m, best.m);
+        let vObv = best.score;
+        if (diffMove) vObv = -nm(obv.c3, Math.max(0, Dr - 1), -1e9, 1e9, 2);
+        const cap = isCap(c2, best.m),
+          chk = c2.type == "chess" && inCheck(c3),
+          margin = clampV(best.score) - clampV(vObv),
+          gap = obv.q - (mine ? mine.q : obv.q),
+          unexp = diffMove && margin >= 100 && gap >= 40,
+          ex = unexp ? margin * (chk ? 0.8 : 1) + Math.min(gap, 400) * 0.3 + (cap ? 0 : 150) : 0;
+        /* lanjutan garis: balasan lawan lalu langkah kedua kita (pukulan penutup) */
+        const line = [{ s: c2, m: best.m }];
+        let u2 = false;
+        try {
+          const o2 = searchTo(c3, Math.max(1, Dr - 1));
+          if (o2) {
+            const c4 = ap(c3, o2.m);
+            line.push({ s: c3, m: o2.m });
+            const k3 = searchTo(c4, Math.max(1, Dr - 2));
+            if (k3) {
+              line.push({ s: c4, m: k3.m });
+              u2 = !isCap(c4, k3.m) && (best.score > 28000 || margin >= 100);
+            }
+          }
+        } catch (e) {
+          if (e === 0) throw e;
+        }
+        return { m: best.m, v: best.score, obv: obv.m, vObv, margin, cap, chk, gap, unexp, u2, ex, c3, line };
+      }
       function expertTrap(s, ms, r) {
-        if (Math.abs(r.score) > 28000) return r;
-        const base = ev(s);
-        let full = [];
-        dl = Date.now() + 1500;
+        const sit = readSit(s);
+        if (Math.abs(r.score) > 28000) return { ...r, sit };
+        const base = ev(s),
+          D = Math.max(3, Math.min(r.depth, 6)),
+          Dr = Math.max(1, D - 2),
+          ahead = sit ? sit.diff : 0,
+          tol = ahead >= 400 ? 30 : ahead <= -300 ? 130 : 60,
+          thr = r.score - tol,
+          T0 = Date.now();
+        /* 1) langkah sehat */
+        let cand = [];
+        dl = T0 + 1000;
         nodes = 0;
         try {
-          let cand = ms
-            .map((m) => {
-              const c = ap(s, m);
-              return { m, c, qv: -nm(c, 0, -1e9, 1e9, 1) };
-            })
-            .sort((a, b) => b.qv - a.qv)
-            .slice(0, 20);
-          for (const x of cand) x.vm = -nm(x.c, 2, -1e9, 1e9, 1);
-          const top = Math.max(...cand.map((x) => x.vm));
-          for (const x of cand.filter((x) => x.vm >= top - 50)) {
-            const reps = legal(x.c).map((o) => {
-              const c2 = ap(x.c, o);
-              return { o, c2, sh: -nm(c2, 0, -1e9, 1e9, 2), dp: -nm(c2, 2, -1e9, 1e9, 2) };
-            });
-            if (!reps.length) continue;
-            const bd = Math.max(...reps.map((z) => z.dp)),
-              bs = Math.max(...reps.map((z) => z.sh));
-            const tempt = reps.filter((z) => z.sh >= bs - 50 && bd - z.dp >= 80).sort((a, b) => b.sh - a.sh);
-            let sac = Math.max(0, base - x.qv);
-            if (sac < 40) sac = 0;
-            full.push({
-              m: x.m,
-              c: x.c,
-              vm: x.vm,
-              tempt,
-              n: reps.length,
-              sac,
-              bad: reps.filter((z) => bd - z.dp >= 80).length,
-              gap: tempt[0] ? bd - tempt[0].dp : 0,
-            });
+          for (const m of order(s, ms.slice())) {
+            const c = ap(s, m),
+              v = -nm(c, D - 1, -1e9, -(thr - 1), 1);
+            if (v >= thr) cand.push({ m, c, vm: v });
           }
         } catch (e) {}
-        if (!full.length) return r;
-        const pool = full.filter((z) => z.tempt.length);
-        const pick = pool.length
-          ? pool.sort((a, b) => a.sac - b.sac || b.gap - a.gap || b.vm - a.vm)[0]
-          : full.sort((a, b) => b.bad - a.bad || a.sac - b.sac || b.vm - a.vm)[0];
-        const tp = pick.tempt[0];
-        let ref = null;
-        if (tp) {
-          dl = Date.now() + 400;
+        if (!cand.some((x) => sameM(x.m, r.m))) cand.push({ m: r.m, c: ap(s, r.m), vm: r.score });
+        cand.sort((x, y) => y.vm - x.vm);
+        cand = cand.slice(0, 8);
+        /* 2) pengorbanan tiap langkah */
+        dl = T0 + 2600;
+        for (const x of cand) {
           try {
-            let bs = -1e9;
-            for (const m2 of gen(tp.c2)) {
-              const v = -nm(ap(tp.c2, m2), 1, -1e9, 1e9, 1);
-              if (v > bs) {
-                bs = v;
-                ref = m2;
-              }
-            }
-          } catch (e) {}
+            const qv = -nm(x.c, 0, -1e9, 1e9, 1);
+            x.sac = base - qv >= 80 ? base - qv : 0;
+          } catch (e) {
+            x.sac = 0;
+          }
         }
+        /* 3) analisis umpan + jawaban tak terduga */
+        const analyze = (x) => {
+          const cX = x.c,
+            reps = legal(cX);
+          x.n = reps.length;
+          if (!reps.length) return false;
+          const rr = reps.map((o) => {
+            const c2 = ap(cX, o);
+            return { o, c2, sh: -nm(c2, 0, -1e9, 1e9, 2), cap: isCap(cX, o) };
+          });
+          rr.sort((p, q) => q.sh - p.sh);
+          const bs = rr[0].sh;
+          let bd = -1e9;
+          for (const z of rr) {
+            const v = -nm(z.c2, Dr, -1e9, -bd, 2);
+            if (v > bd) bd = v;
+          }
+          const greedy = rr.filter((z) => z.cap && z.sh >= bs - 80),
+            bait = [];
+          for (const z of rr.slice(0, 3).concat(greedy.slice(0, 3))) if (!bait.includes(z)) bait.push(z);
+          for (const z of bait) {
+            z.dp = -nm(z.c2, Dr, -1e9, 1e9, 2);
+            z.mist = bd - z.dp >= 80;
+          }
+          let bad = 0;
+          for (const z of rr) {
+            if (bait.includes(z)) {
+              if (z.mist) bad++;
+            } else if (nm(z.c2, Dr, -bd + 79, -bd + 80, 2) >= -bd + 80) bad++;
+          }
+          x.bad = bad;
+          x.greedyAll = greedy.every((z) => z.mist);
+          x.baits = [];
+          for (const z of bait) {
+            if (!z.mist) continue;
+            const R = refute(z.c2, Dr);
+            if (R) {
+              const loss = clampV(bd) - clampV(z.dp);
+              R.any = R.unexp || R.u2;
+              if (!R.unexp) R.ex = R.u2 ? 150 + Math.min(loss, 1500) * 0.5 : 0;
+              x.baits.push({
+                o: z.o,
+                c2: z.c2,
+                cap: z.cap,
+                loss,
+                forced: z.dp < -28000,
+                ref: R,
+              });
+            }
+          }
+          x.unexpN = x.baits.filter((z) => z.ref.any).length;
+          x.ex = Math.max(0, ...x.baits.map((z) => z.ref.ex));
+          x.ok = x.unexpN >= 1 && (!x.sac || x.greedyAll);
+          return true;
+        };
+        const fin = [];
+        for (const x of cand) {
+          try {
+            if (analyze(x)) fin.push(x);
+          } catch (e) {
+            break;
+          }
+        }
+        if (!fin.length) return { ...r, sit };
+        /* 4) pilih */
+        const score = (z) => z.ex - z.sac * 0.3 + z.vm * 0.1 + Math.min(z.bad, 10) * 5;
+        let pick = fin.filter((z) => z.ok && !(ahead >= 400 && z.sac)).sort((p, q) => score(q) - score(p))[0];
+        if (!pick) {
+          const pool = fin.some((z) => !z.sac) ? fin.filter((z) => !z.sac) : fin,
+            k = ahead >= 400 ? (z) => z.vm : (z) => z.vm + Math.min(z.bad, 12) * 3;
+          pick = pool.sort((p, q) => k(q) - k(p))[0];
+        }
+        const baits = pick.baits.slice().sort((p, q) => q.ref.ex - p.ref.ex || q.loss - p.loss);
         return {
           ...r,
           m: pick.m,
           score: pick.vm,
           trap: 2,
-          info: { c: pick.c, sac: pick.sac, tempt: pick.tempt.length, bad: pick.bad, n: pick.n, gap: pick.gap, tp, ref },
+          sit,
+          info: { c: pick.c, sac: pick.sac, n: pick.n, bad: pick.bad, baits, ok: pick.ok, vm: pick.vm, D },
         };
       }
-      /* ===== TIC-TAC-TOE: selalu memilih langkah berjebakan ===== */
+      function xLabel(i) {
+        if (i.baits.some((z) => z.ref.any))
+          return i.sac
+            ? [
+                "Pengorbanan Jebakan !!",
+                "Bidak sengaja dikorbankan; jika dimakan, ada jawaban tak terduga (tidak dipilih pencarian dangkal) yang membuat lawan rugi besar atau kalah.",
+                "#c0392b",
+              ]
+            : ["Jebakan Expert", "Langkah sehat tanpa korban, dengan jebakan tersembunyi.", "#c0392b"];
+        return [
+          "Solid + Tekanan",
+          "Tidak ada pengorbanan yang sehat di posisi ini; dipilih langkah kuat yang paling banyak membuat lawan salah.",
+          "#2980b9",
+        ];
+      }
+      function xLi(s, i) {
+        let t = `<li><b>Pengorbanan:</b> ${i.sac ? (i.sac / 100).toFixed(1) + " poin — aman hanya karena semua cara memakannya terbukti salah (lihat umpan)" : "nol (tidak ada bidak diberikan)"}</li>`;
+        const bs = i.baits.filter((z) => z.ref.any).concat(i.baits.filter((z) => !z.ref.any));
+        for (const z of bs.slice(0, 3)) {
+          const R = z.ref,
+            ln = R.line,
+            out = R.v > 28000 ? "lawan <b>kalah paksa</b>" : `lawan rugi sekitar ${(z.loss / 100).toFixed(1)} poin`;
+          if (R.unexp)
+            t += `<li><b>Umpan:</b> jika lawan membalas <b>${mtxt(i.c, z.o)}</b> (tampak menguntungkan), jawab <b>${mtxt(z.c2, R.m)}!!</b> — ${R.chk ? "skak mengejutkan" : R.cap ? "pengorbanan mengejutkan" : "langkah tenang tak terduga"}, bukan <b>${mtxt(z.c2, R.obv)}</b> yang tampak jelas. ${out}.</li>`;
+          else if (R.u2 && ln.length > 2)
+            t += `<li><b>Umpan:</b> jika lawan membalas <b>${mtxt(i.c, z.o)}</b> (tampak menguntungkan), jawab <b>${mtxt(z.c2, R.m)}</b>; setelah <b>${mtxt(ln[1].s, ln[1].m)}</b> datang pukulan tenang tak terduga <b>${mtxt(ln[2].s, ln[2].m)}!!</b>. ${out}.</li>`;
+          else
+            t += `<li><b>Jebakan:</b> jika lawan membalas <b>${mtxt(i.c, z.o)}</b>, jawab <b>${mtxt(z.c2, R.m)}</b>; ${out}.</li>`;
+        }
+        const tb = bs.find((z) => z.ref.line && z.ref.line.length > 1);
+        if (tb)
+          t += `<li><b>Garis:</b> ${mtxt(i.c, tb.o)} ${tb.ref.line.map((z) => mtxt(z.s, z.m)).join(" ")}</li>`;
+        t += i.baits.length
+          ? `<li><b>Jebakan:</b> ${i.bad} dari ${i.n} balasan lawan merugikannya.</li>`
+          : `<li><b>Jebakan:</b> belum ada umpan alami; langkah ini membuat ${i.bad} dari ${i.n} balasan lawan merugikannya.</li>`;
+        return t;
+      }
+/* ===== TIC-TAC-TOE: selalu memilih langkah berjebakan ===== */
       function trapT(s, ms, r) {
         const em = s.b.filter((x) => !x).length,
           small = em <= 12,
@@ -1117,17 +1644,24 @@
         const m = r.m,
           ch = s.type == "chess",
           p = s.b[m.f].toUpperCase();
-        let t = `<li><b>Langkah:</b> ${ch ? PN[p] : p == "K" ? "Raja" : "Pion"} ${sqn(m.f)} → ${sqn(m.t)}`;
-        if (ch && s.b[m.t]) t += `, memakan ${PN[s.b[m.t].toUpperCase()]}`;
-        if (!ch && m.cap.length) t += `, memakan ${m.cap.length} bidak`;
-        if (m.pr) t += ch ? ", promosi jadi Menteri" : ", naik jadi Raja";
+        let t = `<li><b>Langkah:</b> `;
+        if (m.cs)
+          t += `${m.t > m.f ? "Rokade pendek" : "Rokade panjang"} (Raja ${sqn(m.f)} → ${sqn(m.t)}, Benteng ${sqn(m.cs.f)} → ${sqn(m.cs.t)})`;
+        else {
+          t += `${ch ? PN[p] : p == "K" ? "Raja" : "Pion"} ${sqn(m.f)} → ${sqn(m.t)}`;
+          if (ch && s.b[m.t]) t += `, memakan ${PN[s.b[m.t].toUpperCase()]}`;
+          if (!ch && m.cap.length) t += `, memakan ${m.cap.length} bidak`;
+          if (m.pr) t += ch ? ", promosi jadi Menteri" : ", naik jadi Raja";
+        }
         t += "</li>";
         const i = r.info;
-        if (i) {
+        if (i && i.baits) t += xLi(s, i);
+        else if (i) {
           t += `<li><b>Pengorbanan:</b> ${i.sac ? (i.sac / 100).toFixed(1) + " poin" : "nol (tidak ada bidak diberikan)"}</li>`;
           t += trapLi(s, i);
         } else t += `<li><b>Alasan:</b> ${L[1]}</li>`;
-        return `<ul class="why">${t}${predLi(s, r)}</ul>`;
+        const sit = r.sit ? `<li><b>Baca situasi:</b> ${r.sit.text}</li>` : "";
+        return `<ul class="why">${sit}${t}${predLi(s, r)}</ul>`;
       }
       /* ===== JEBAKAN OTOMATIS: pilih umpan terbaik yang nilainya hampir sama dengan langkah terbaik ===== */
       function pickTrap(s, ms, r) {
@@ -1155,6 +1689,8 @@
           ms = ttt ? genT(G, false, 0) : legal(G);
         if (!ms.length) return;
         busy = 1;
+        TT.clear();
+        KIL.length = 0;
         $("info").textContent = "Mesin berpikir…";
         setTimeout(() => {
           const base = think(G, ms, lvT());
@@ -1162,11 +1698,14 @@
           if (ttt) r = trapT(G, ms, base);
           else if ($("lv").value == "x") r = expertTrap(G, ms, base);
           else if ($("atr").checked) r = pickTrap(G, ms, base);
-          r = guard(G, base, r);
+          if (!(r.trap == 2 && !ttt)) r = guard(G, base, r);
+          if (!ttt && !r.sit) r.sit = readSit(G);
           const L = r.guarded
             ? ["Dijaga dari blunder", "Umpan dibatalkan karena balasan lawan berisiko; dipakai langkah terbaik.", "#2980b9"]
             : r.trap == 2
-              ? ["Jebakan Expert", "Langkah aman dengan pengorbanan minimal yang menyiapkan jebakan.", "#c0392b"]
+              ? r.info && r.info.baits
+                ? xLabel(r.info)
+                : ["Jebakan Expert", "Langkah aman dengan pengorbanan minimal yang menyiapkan jebakan.", "#c0392b"]
               : r.trap
                 ? ["Jebakan otomatis", "Umpan materi yang, menurut hitungan mesin, merugikan lawan jika dimakan.", "#d35400"]
                 : label(G, r);
@@ -1181,10 +1720,11 @@
         }, 40);
       }
       function play(m) {
-        G.hist.push({ b: G.b, last: G.last });
+        G.hist.push({ b: G.b, last: G.last, cr: G.cr });
         const n = ap(G, m);
         G.b = n.b;
         G.side = n.side;
+        G.cr = n.cr;
         G.last = [m.f, m.t];
         sel = hint = hintM = null;
         draw();
@@ -1314,6 +1854,7 @@
           const h = G.hist.pop();
           G.b = h.b;
           G.last = h.last;
+          G.cr = h.cr;
           G.side = -G.side;
         }
         sel = hint = hintM = null;
@@ -1334,7 +1875,7 @@
         labels();
         mk();
       };
-      ["dbl", "kc", "force", "back", "fly"].forEach(
+      ["dbl", "kc", "cas", "force", "back", "fly"].forEach(
         (k) =>
           ($(k).onchange = () => {
             G.R[k] = $(k).checked;
@@ -1370,6 +1911,7 @@
           seen = new Set(),
           q = [{ s: G, line: [], tx: [] }];
         scanning = 1;
+        TT.clear();
         $("bj").textContent = "⏹ Stop";
         $("tl").innerHTML = "";
         const finish = () => {
@@ -1402,7 +1944,7 @@
           const t0 = Date.now();
           while (scanning && q.length && found.length < want && Date.now() - t0 < 60) {
             const { s, line, tx } = q.shift(),
-              key = s.b.join("") + s.side;
+              key = s.b.join("") + s.side + (s.cr || 0);
             if (seen.has(key) || s.w) continue;
             seen.add(key);
             const ms = s.type == "ttt" ? genT(s, false, 1) : legal(s);
@@ -1489,12 +2031,12 @@
       $("bwin").onclick = floatWin;
 
       /* ===== VERSI & NOTIFIKASI UPDATE ===== */
-      const APP_VERSION = "1.7.0";
+      const APP_VERSION = "1.8.0";
       const CHANGELOG = [
-        "Perbaikan pion putih tampil hitam",
-        "Prediksi balasan lawan + penjaga blunder",
-        "Tic-Tac-Toe ukuran bebas (selalu jebakan)",
-        "Jendela melayang pas & lengkap",
+        "Rokade pendek & panjang",
+        "Mesin lebih kuat (tabel transposisi, null-move, LMR, mat/stalemate benar)",
+        "Expert: korban hanya bila ada jawaban tenang tak terduga",
+        "Baca situasi (fase, materi, ancaman)",
       ];
       const notified = new Set();
       $("ver").textContent = "Versi " + APP_VERSION + " · Baru: " + CHANGELOG.join(" · ");
