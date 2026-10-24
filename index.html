@@ -301,7 +301,7 @@
               </select></div>
             <div class="fld"><span>Level</span>
               <select id="lv">
-                <option value="x">⚡ Expert (cepat, selalu jebakan, korban minim)</option>
+                <option value="x">♟ Expert+ (taktik, jebakan, cari mat)</option>
                 <option value="400">Cepat</option><option value="2000" selected>Kuat</option>
                 <option value="6000">Pro (6 dtk)</option>
               </select></div>
@@ -349,7 +349,7 @@
           <div class="sm">
             Klik bidak lalu kotak tujuan (Tic-Tac-Toe: klik kotak kosong). Mesin: negamax + alpha-beta, iterative deepening,
             quiescence, plus analisis balasan lawan untuk mencegah blunder. Label (Brilliant, Gambit, Jebakan) ditebak dari
-            hasil pencarian. Catatan: belum ada rokade &amp; en passant, promosi selalu jadi Menteri.
+            hasil pencarian. Rokade pendek/panjang tersedia pada catur standar 8×8. Promosi otomatis menjadi Menteri; en passant belum tersedia.
           </div>
         </div>
       </div>
@@ -652,6 +652,21 @@
                 }
               } else mv(rr, cc);
             }
+            // Castling is only available on a standard 8x8 chess board.
+            if (!s.noCastle && t == "K" && W == 8 && H == 8 && r == (side == 1 ? 7 : 0) && c == 4 && !inCheck(s)) {
+              const rights = s.castle == null ? 15 : s.castle;
+              const enemy = -side;
+              if ((rights & (side == 1 ? 1 : 4)) && b[r * W + 7] == (side == 1 ? "R" : "r") &&
+                  !b[r * W + 5] && !b[r * W + 6] &&
+                  !gen({...s, side: enemy}).some(o => o.t == r * W + 5 || o.t == r * W + 6)) {
+                out.push({f:i,t:r*W+6,castle:"K"});
+              }
+              if ((rights & (side == 1 ? 2 : 8)) && b[r * W] == (side == 1 ? "R" : "r") &&
+                  !b[r * W + 1] && !b[r * W + 2] && !b[r * W + 3] &&
+                  !gen({...s, side: enemy}).some(o => o.t == r * W + 3 || o.t == r * W + 2)) {
+                out.push({f:i,t:r*W+2,castle:"Q"});
+              }
+            }
           }
         }
         return out;
@@ -732,7 +747,21 @@
         b[m.f] = null;
         if (m.cap) m.cap.forEach((j) => (b[j] = null));
         b[m.t] = m.pr ? (s.type == "chess" ? (s.side == 1 ? "Q" : "q") : s.side == 1 ? "K" : "k") : p;
-        return { type: s.type, W: s.W, H: s.H, R: s.R, b, side: -s.side };
+        let castle = s.castle == null ? 15 : s.castle;
+        if (s.type == "chess" && s.W == 8 && s.H == 8) {
+          if (p == "K") castle &= ~3;
+          if (p == "k") castle &= ~12;
+          const rb = {56:2,63:1,0:8,7:4};
+          if (p && p.toUpperCase() == "R") castle &= ~(rb[m.f] || 0);
+          if (b[m.t] && b[m.t].toUpperCase() == "R" && m.f != m.t) castle &= ~(rb[m.t] || 0);
+          if (m.castle) {
+            const row = s.side == 1 ? 7 : 0;
+            const rf = m.castle == "K" ? row*8+7 : row*8;
+            const rt = m.castle == "K" ? row*8+5 : row*8+3;
+            b[rt] = b[rf]; b[rf] = null;
+          }
+        }
+        return { type: s.type, W: s.W, H: s.H, R: s.R, b, side: -s.side, castle };
       }
       function ev(s) {
         if (s.type == "ttt") return evT(s);
@@ -813,7 +842,7 @@
       }
       function inCheck(s) {
         const k = s.side == 1 ? "K" : "k";
-        return gen({ ...s, side: -s.side }).some((o) => s.b[o.t] == k);
+        return gen({ ...s, side: -s.side, noCastle: true }).some((o) => s.b[o.t] == k);
       }
       function think(s, ms, time) {
         dl = Date.now() + time;
@@ -846,6 +875,7 @@
       const sqn = (i) => String.fromCharCode(97 + (i % G.W)) + (G.H - ((i / G.W) | 0));
       function mtxt(s, m) {
         if (s.type == "ttt") return (s.side == 1 ? "X" : "O") + " " + sqn(m.t);
+        if (m.castle) return m.castle == "K" ? "O-O" : "O-O-O";
         const p = s.b[m.f].toUpperCase();
         return (
           (s.type == "chess" && p != "P" ? p : "") +
@@ -1117,6 +1147,7 @@
         const m = r.m,
           ch = s.type == "chess",
           p = s.b[m.f].toUpperCase();
+        if (ch && m.castle) return `<ul class="why"><li><b>Langkah:</b> Rokade ${m.castle == "K" ? "pendek (O-O)" : "panjang (O-O-O)"}.</li><li><b>Alasan:</b> Raja dan benteng belum bergerak, jalur kosong, dan Raja tidak melewati petak yang diserang.</li>${predLi(s,r)}</ul>`;
         let t = `<li><b>Langkah:</b> ${ch ? PN[p] : p == "K" ? "Raja" : "Pion"} ${sqn(m.f)} → ${sqn(m.t)}`;
         if (ch && s.b[m.t]) t += `, memakan ${PN[s.b[m.t].toUpperCase()]}`;
         if (!ch && m.cap.length) t += `, memakan ${m.cap.length} bidak`;
@@ -1181,7 +1212,7 @@
         }, 40);
       }
       function play(m) {
-        G.hist.push({ b: G.b, last: G.last });
+        G.hist.push({ b: G.b.slice(), last: G.last, side: G.side, castle: G.castle });
         const n = ap(G, m);
         G.b = n.b;
         G.side = n.side;
@@ -1314,7 +1345,8 @@
           const h = G.hist.pop();
           G.b = h.b;
           G.last = h.last;
-          G.side = -G.side;
+          G.side = h.side == null ? -G.side : h.side;
+          G.castle = h.castle == null ? G.castle : h.castle;
         }
         sel = hint = hintM = null;
         draw();
