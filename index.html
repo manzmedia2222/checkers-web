@@ -301,7 +301,7 @@
               </select></div>
             <div class="fld"><span>Level</span>
               <select id="lv">
-                <option value="x">⚡ Expert (jebakan berlapis, korban hanya bila ada jawaban tak terduga)</option>
+                <option value="x">⚡ Expert (super cepat ~0,3 dtk, jebakan berlapis)</option>
                 <option value="400">Cepat</option><option value="2000" selected>Kuat</option>
                 <option value="6000">Pro (6 dtk)</option>
               </select></div>
@@ -469,6 +469,8 @@
           flip: G ? G.flip : 0,
         };
         sel = hint = hintM = null;
+        TT.clear();
+        HIST.fill(0);
         $("info").innerHTML = "";
         draw();
         after();
@@ -566,11 +568,12 @@
           return mv([cr * W + cc, cr * W + cc - 1, (cr - 1) * W + cc, (cr - 1) * W + cc - 1].filter((i) => i >= 0));
         }
         if (W * H <= 25) return mv(emp);
-        const near = emp.filter((i) => {
+        const RAD = emp.length > 40 ? 1 : 2,
+          near = emp.filter((i) => {
           const r = (i / W) | 0,
             c = i % W;
-          for (let dr = -2; dr <= 2; dr++)
-            for (let dc = -2; dc <= 2; dc++) {
+          for (let dr = -RAD; dr <= RAD; dr++)
+            for (let dc = -RAD; dc <= RAD; dc++) {
               const rr = r + dr,
                 cc = c + dc;
               if (rr >= 0 && cc >= 0 && rr < H && cc < W && b[rr * W + cc]) return true;
@@ -968,6 +971,7 @@ function genK(s, co) {
         return Math.round(t * s.side);
       }
       let TT = new Map(),
+        HIST = new Int32Array(144 * 144),
         KIL = [],
         H1 = 0,
         H2 = 0;
@@ -1007,7 +1011,7 @@ function genK(s, co) {
               ? 1e7
               : kl && ((kl[0] && kl[0].f == m.f && kl[0].t == m.t) || (kl[1] && kl[1].f == m.f && kl[1].t == m.t))
                 ? 5000
-                : 0;
+                : HIST[m.f * 144 + m.t] || 0;
         const sc =
           s.type == "ttt"
             ? (m) => -(Math.abs((m.t % s.W) - (s.W - 1) / 2) + Math.abs(((m.t / s.W) | 0) - (s.H - 1) / 2))
@@ -1072,7 +1076,8 @@ function genK(s, co) {
         let ms = gen(s, q);
         if (ms.length > 1) ms = order(s, ms, ttm, ply);
         for (const m of ms) {
-          const vic = s.b[m.t];
+          const vic = s.b[m.t],
+            quiet = ch ? !vic && !m.pr : s.type == "ck" ? !(m.cap && m.cap.length) && !m.pr : false;
           if (ch && s.R.kc && vic && vic.toUpperCase() == "K") return 30000 - ply;
           if (q && ch && vic && !m.pr && best + V[vic.toUpperCase()] + 200 < a) continue;
           const c = ap(s, m);
@@ -1081,7 +1086,7 @@ function genK(s, co) {
           let sc;
           if (q || mi == 0) sc = -nm(c, d - 1, -B, -a, ply + 1);
           else {
-            const r = ch && d >= 3 && mi >= 4 && !vic && !m.pr && !inchk ? 1 : 0;
+            const r = quiet && d >= 3 && mi >= 3 && !inchk ? 1 : 0;
             sc = -nm(c, d - 1 - r, -a - 1, -a, ply + 1);
             if (r && sc > a) sc = -nm(c, d - 1, -a - 1, -a, ply + 1);
             if (sc > a && sc < B) sc = -nm(c, d - 1, -B, -a, ply + 1);
@@ -1093,7 +1098,8 @@ function genK(s, co) {
             if (sc > a) {
               a = sc;
               if (a >= B) {
-                if (!vic && !m.pr && ply < 64) {
+                if (quiet && ply < 64) {
+                  if (d > 0) HIST[m.f * 144 + m.t] += d * d;
                   const k = KIL[ply];
                   if (!k) KIL[ply] = [m, null];
                   else if (!(k[0] && k[0].f == m.f && k[0].t == m.t)) {
@@ -1220,7 +1226,11 @@ function think(s, ms, time) {
       }
 
       /* ===== ANALISIS LAWAN: prediksi balasan + penjaga blunder ===== */
-      const lvT = () => ($("lv").value == "x" ? 450 : +$("lv").value);
+      /* Expert: anggaran waktu sangat kecil. EXMS = pencarian, EXTRAP = batas keras analisis jebakan (ms). */
+      const EXMS = 120,
+        EXTRAP = 200,
+        isX = () => $("lv").value == "x";
+      const lvT = () => (isX() ? EXMS : +$("lv").value);
       function predict(s, m) {
         const c = ap(s, m),
           out = [];
@@ -1405,7 +1415,7 @@ function think(s, ms, time) {
           T0 = Date.now();
         /* 1) langkah sehat */
         let cand = [];
-        dl = T0 + 1000;
+        dl = T0 + EXTRAP * 0.5;
         nodes = 0;
         try {
           for (const m of order(s, ms.slice())) {
@@ -1416,9 +1426,9 @@ function think(s, ms, time) {
         } catch (e) {}
         if (!cand.some((x) => sameM(x.m, r.m))) cand.push({ m: r.m, c: ap(s, r.m), vm: r.score });
         cand.sort((x, y) => y.vm - x.vm);
-        cand = cand.slice(0, 8);
+        cand = cand.slice(0, 5);
         /* 2) pengorbanan tiap langkah */
-        dl = T0 + 2600;
+        dl = T0 + EXTRAP;
         for (const x of cand) {
           try {
             const qv = -nm(x.c, 0, -1e9, 1e9, 1);
@@ -1552,7 +1562,7 @@ function think(s, ms, time) {
           small = em <= 12,
           big = s.W * s.H > 25,
           D = small ? em : big ? 2 : 4;
-        dl = Date.now() + (small ? 5000 : 1800);
+        dl = Date.now() + (isX() ? EXTRAP : small ? 5000 : 1800);
         nodes = 0;
         const vals = [];
         try {
@@ -1603,7 +1613,7 @@ function think(s, ms, time) {
         const tp = pick.tempt[0];
         let ref = null;
         if (tp && !tp.c2.w) {
-          dl = Date.now() + 600;
+          dl = Date.now() + (isX() ? 40 : 600);
           try {
             let bs = -1e9;
             for (const m2 of genT(tp.c2, false, 0)) {
@@ -1689,8 +1699,9 @@ function think(s, ms, time) {
           ms = ttt ? genT(G, false, 0) : legal(G);
         if (!ms.length) return;
         busy = 1;
-        TT.clear();
+        if (!isX()) TT.clear(); /* Expert: tabel transposisi dipakai ulang antar langkah agar makin dalam */
         KIL.length = 0;
+        for (let i = 0; i < HIST.length; i++) HIST[i] >>= 2;
         $("info").textContent = "Mesin berpikir…";
         setTimeout(() => {
           const base = think(G, ms, lvT());
@@ -1698,7 +1709,7 @@ function think(s, ms, time) {
           if (ttt) r = trapT(G, ms, base);
           else if ($("lv").value == "x") r = expertTrap(G, ms, base);
           else if ($("atr").checked) r = pickTrap(G, ms, base);
-          if (!(r.trap == 2 && !ttt)) r = guard(G, base, r);
+          if (!(r.trap == 2 && !ttt) && !isX()) r = guard(G, base, r);
           if (!ttt && !r.sit) r.sit = readSit(G);
           const L = r.guarded
             ? ["Dijaga dari blunder", "Umpan dibatalkan karena balasan lawan berisiko; dipakai langkah terbaik.", "#2980b9"]
@@ -1717,7 +1728,7 @@ function think(s, ms, time) {
           busy = 0;
           if (auto) play(r.m);
           else draw();
-        }, 40);
+        }, 10);
       }
       function play(m) {
         G.hist.push({ b: G.b, last: G.last, cr: G.cr });
@@ -1883,6 +1894,7 @@ function think(s, ms, time) {
         (k) =>
           ($(k).onchange = () => {
             G.R[k] = $(k).checked;
+            TT.clear();
             sel = hint = hintM = null;
             $("info").innerHTML = "";
             draw();
